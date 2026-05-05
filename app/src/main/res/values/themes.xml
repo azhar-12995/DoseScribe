@@ -1,0 +1,16 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme. -->
+    <style name="Base.Theme.DOSESCRIBE" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:statusBarColor">@color/appcolor</item>
+        <item name="android:navigationBarColor">@color/appcolor</item>
+    </style>
+
+    <style name="Theme.DOSESCRIBE" parent="Base.Theme.DOSESCRIBE" />
+
+    <!-- Splash Screen Theme - removes Android icon -->
+    <style name="Theme.DOSESCRIBE.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/appcolor</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/logo</item>
+        <item name="postSplashScreenTheme">@style/Theme.DOSESCRIBE</item>
+    </style>
+</resources>
