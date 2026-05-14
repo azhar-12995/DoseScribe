@@ -49,27 +49,7 @@ enum class LessonStep(val label: String, val shortLabel: String) {
     RESULTS("Step 5: Results", "Results")
 }
 
-// ── MCQ data ──────────────────────────────────────────────────────
-data class McqQuestion(
-    val question: String,
-    val options: List<String>,
-    val correctIndex: Int,
-    val explanation: String,
-    val points: Int = 1
-)
-
-fun getMcqsForModule(moduleId: String): List<McqQuestion> = listOf(
-    McqQuestion("What is the primary objective of this module?", listOf("Theoretical understanding only", "Developing practical clinical competency", "Memorization of drug names", "Administrative compliance"), 1, "The primary objective is developing practical competency."),
-    McqQuestion("Which safety measure is most critical?", listOf("Speed of execution", "Patient verification and identification", "Cost optimization", "Brand preference"), 1, "Patient verification is the most critical safety measure."),
-    McqQuestion("The recommended approach involves:", listOf("Skipping steps when experienced", "Following standardized protocols consistently", "Relying on peer assistance only", "Using shortcuts when possible"), 1, "Following standardized protocols ensures safety."),
-    McqQuestion("When should documentation be completed?", listOf("End of shift", "Immediately after the procedure", "When convenient", "Weekly batch processing"), 1, "Documentation should be completed immediately."),
-    McqQuestion("In case of a discrepancy, you should:", listOf("Ignore if minor", "Report and investigate immediately", "Fix silently", "Wait for review cycle"), 1, "Discrepancies should be reported immediately."),
-    McqQuestion("Quality assurance means:", listOf("Meeting minimum requirements", "Continuous improvement and monitoring", "One-time compliance check", "External audit only"), 1, "QA involves continuous improvement and monitoring."),
-    McqQuestion("The most important factor for patient outcomes is:", listOf("Equipment quality", "Practitioner competency and protocol adherence", "Facility size", "Technology integration"), 1, "Practitioner competency directly impacts patient outcomes."),
-    McqQuestion("Communication with the team should be:", listOf("Minimal", "Clear, timely, and documented", "Informal and verbal only", "Through email only"), 1, "Communication should be clear, timely, and documented."),
-    McqQuestion("Continuing education is:", listOf("Optional", "Mandatory for maintaining competency", "Only for new practitioners", "Not essential"), 1, "Continuing education is mandatory for competency."),
-    McqQuestion("Ethical responsibility includes:", listOf("Maximizing throughput", "Patient safety and welfare above all", "Meeting institutional targets", "Career advancement"), 1, "Patient safety and welfare above all.")
-)
+// ── MCQ data is defined in ModuleMcqs.kt ──────────────────────────
 
 // ── Progress ViewModel (persisted to Firestore, shared across screens) ─────────────────────────
 @dagger.hilt.android.lifecycle.HiltViewModel
@@ -480,8 +460,8 @@ fun LearningModuleScreen(navController: NavController, moduleId: String, progres
                 Spacer(Modifier.height(8.dp))
                 Text(
                     "${module?.description ?: ""}\n\nThis module covers identification, safe handling, and administration protocols. " +
-                    "You will learn best practices, common errors, and how to prevent adverse events.\n\n" +
-                    "Key topics:\n• Identification and classification\n• Safety protocols\n• Documentation requirements\n• Error prevention\n• Patient communication",
+                            "You will learn best practices, common errors, and how to prevent adverse events.\n\n" +
+                            "Key topics:\n• Identification and classification\n• Safety protocols\n• Documentation requirements\n• Error prevention\n• Patient communication",
                     style = MaterialTheme.typography.bodyMedium, color = Color.DarkGray, lineHeight = 22.sp
                 )
                 Spacer(Modifier.height(20.dp))
@@ -521,25 +501,11 @@ fun LearningModuleScreen(navController: NavController, moduleId: String, progres
 // ════════════════════════════════════════════════════════════════════
 @Composable
 fun SimulationScreen(navController: NavController, moduleId: String, progressVm: LessonProgressViewModel = hiltViewModel()) {
-    Scaffold(containerColor = SurfaceBg) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-            SimpleTopBar(title = "Simulation", onBackClick = { navController.popBackStack() })
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) {
-                    Icon(Icons.Filled.Science, null, tint = BrandBlue, modifier = Modifier.size(80.dp))
-                    Spacer(Modifier.height(20.dp))
-                    Text("Interactive Simulation", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold), color = BrandBlue)
-                    Spacer(Modifier.height(8.dp))
-                    Text("The simulation will open in landscape mode.\nContent will be loaded here.", style = MaterialTheme.typography.bodyMedium, color = Color.Gray, textAlign = TextAlign.Center)
-                    Spacer(Modifier.height(32.dp))
-                    Button(onClick = { progressVm.completeStep(moduleId, 2); navController.popBackStack() },
-                        modifier = Modifier.fillMaxWidth(0.6f).height(50.dp), colors = ButtonDefaults.buttonColors(containerColor = BrandBlue), shape = RoundedCornerShape(12.dp)) {
-                        Text("Complete Simulation", fontSize = 16.sp)
-                    }
-                }
-            }
-        }
-    }
+    com.azhar.dosescribe.ui.feature.simulation.SimulationMainScreen(
+        navController = navController,
+        moduleId = moduleId,
+        lessonProgress = progressVm
+    )
 }
 
 // ════════════════════════════════════════════════════════════════════

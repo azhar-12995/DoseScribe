@@ -9,22 +9,50 @@ import androidx.compose.ui.graphics.Color
 
 private val DarkColorPalette = darkColorScheme(
     primary = BrandBlue,
+    onPrimary = Color.White,
+    primaryContainer = BrandBlueDark,
+    onPrimaryContainer = Color.White,
     secondary = BrandBlueDark,
+    onSecondary = Color.White,
     tertiary = CardGreen,
-    background = Color(0xFF121212),
-    surface = Color(0xFF1E1E1E)
+    onTertiary = Color.White,
+    background = Color(0xFF0F1419),
+    onBackground = Color(0xFFE6EAF0),
+    surface = Color(0xFF161B22),
+    onSurface = Color(0xFFE6EAF0),
+    surfaceVariant = Color(0xFF1E242C),
+    onSurfaceVariant = Color(0xFFB6BFCC),
+    error = ErrorRed,
+    onError = Color.White,
+    outline = Color(0xFF3A4250),
+    outlineVariant = Color(0xFF2A3140)
 )
 
 private val LightColorPalette = lightColorScheme(
     primary = BrandBlue,
-    secondary = BrandBlueDark,
-    tertiary = CardGreen,
-    background = Color.White,
-    surface = Color.White,
     onPrimary = Color.White,
+    primaryContainer = BrandBlueLight,
+    onPrimaryContainer = BrandBlueDark,
+    secondary = BrandBlueDark,
     onSecondary = Color.White,
-    onBackground = Color.Black,
-    onSurface = Color.Black
+    secondaryContainer = BrandBlueSoft,
+    onSecondaryContainer = BrandBlueDark,
+    tertiary = CardGreen,
+    onTertiary = Color.White,
+    tertiaryContainer = SuccessGreenLight,
+    onTertiaryContainer = SuccessGreen,
+    background = SurfaceBg,
+    onBackground = TextPrimary,
+    surface = SurfaceCard,
+    onSurface = TextPrimary,
+    surfaceVariant = SurfaceElevated,
+    onSurfaceVariant = TextSecondary,
+    error = ErrorRed,
+    onError = Color.White,
+    errorContainer = ErrorRedLight,
+    onErrorContainer = ErrorRed,
+    outline = DividerSoft,
+    outlineVariant = DividerSoft
 )
 
 @Composable
@@ -32,11 +60,7 @@ fun DoseScribeTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {
-    val colors = if (darkTheme) {
-        DarkColorPalette
-    } else {
-        LightColorPalette
-    }
+    val colors = if (darkTheme) DarkColorPalette else LightColorPalette
 
     MaterialTheme(
         colorScheme = colors,
