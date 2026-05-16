@@ -38,9 +38,12 @@ import com.azhar.dosescribe.ui.feature.simulation.CaseScore
 import com.azhar.dosescribe.ui.feature.simulation.DrugResult
 import com.azhar.dosescribe.ui.feature.simulation.FieldResult
 import com.azhar.dosescribe.ui.feature.simulation.SimulationResultContent
-import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.YouTubePlayer
-import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.listeners.AbstractYouTubePlayerListener
-import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.views.YouTubePlayerView
+import android.annotation.SuppressLint
+import android.content.Intent
+import android.net.Uri
+import android.webkit.WebChromeClient
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import kotlinx.coroutines.launch
 
 // ── Brand colours ─────────────────────────────────────────────────
@@ -453,6 +456,10 @@ private fun StepCard(step: LessonStep, stepIndex: Int, isUnlocked: Boolean, isCo
 // ── Transcript and Video data ─────────────────────────────────────────────
 data class TranscriptLine(val time: Float, val timestampLabel: String, val text: String)
 
+
+// Real lesson video IDs (provided by content team).
+private const val PLACEHOLDER_VIDEO = "S6VziAXfkFs"
+
 val moduleVideos = mapOf(
     "appropriateness_review" to "TfgJSln2V3o",
     "auxiliary_labels" to "S6VziAXfkFs",
@@ -522,6 +529,7 @@ val moduleTranscripts = mapOf(
 // ════════════════════════════════════════════════════════════════════
 //  STEP 2: LEARNING VIDEO SCREEN
 // ════════════════════════════════════════════════════════════════════
+@SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun Step2LearningVideoScreen(
     navController: NavController,
@@ -534,14 +542,10 @@ fun Step2LearningVideoScreen(
         TranscriptLine(30f, "0:30", "The video covers important clinical concepts and safety protocols."),
         TranscriptLine(60f, "1:00", "Pay close attention to the concepts shown as they will be in the simulation.")
     )
-    val videoId = moduleVideos[moduleId] ?: "TfgJSln2V3o"
-    
+    val videoId = moduleVideos[moduleId] ?: "S6VziAXfkFs"
+
     var currentTime by remember { mutableFloatStateOf(0f) }
-    var youtubePlayer by remember { mutableStateOf<YouTubePlayer?>(null) }
-    var isVideoLoaded by remember { mutableStateOf(false) }
-    var isPlaying by remember { mutableStateOf(false) }
-    var loadError by remember { mutableStateOf<String?>(null) }
-    
+
     val lazyListState = rememberLazyListState()
     
     // Find active transcript index
@@ -609,66 +613,62 @@ fun Step2LearningVideoScreen(
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(210.dp),
+                        .height(210.dp)
+                        .clickable {
+                            val encodedTitle = java.net.URLEncoder.encode(
+                                module?.title ?: "Lesson Video", "UTF-8"
+                            )
+                            navController.navigate("video_player/$videoId/$encodedTitle")
+                        },
                     shape = RoundedCornerShape(20.dp),
                     elevation = CardDefaults.cardElevation(4.dp)
                 ) {
-                    Box(Modifier.fillMaxSize().background(Color.Black)) {
-                        if (loadError != null) {
-                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Text(loadError!!, color = Color.White, textAlign = TextAlign.Center, modifier = Modifier.padding(16.dp))
-                            }
-                        } else {
-                            AndroidView(
-                                factory = { ctx ->
-                                    YouTubePlayerView(ctx).apply {
-                                        (ctx as? LifecycleOwner)?.lifecycle?.addObserver(this)
-                                        addYouTubePlayerListener(object : AbstractYouTubePlayerListener() {
-                                            override fun onReady(player: YouTubePlayer) {
-                                                youtubePlayer = player
-                                                player.cueVideo(videoId, 0f)
-                                                isVideoLoaded = true
-                                            }
-                                            override fun onCurrentSecond(player: YouTubePlayer, second: Float) {
-                                                currentTime = second
-                                            }
-                                            override fun onStateChange(player: YouTubePlayer, state: com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants.PlayerState) {
-                                                isPlaying = state == com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants.PlayerState.PLAYING
-                                            }
-                                            override fun onError(player: YouTubePlayer, error: com.pierfrancescosoffritti.androidyoutubeplayer.core.player.PlayerConstants.PlayerError) {
-                                                loadError = "Video unavailable. Please check your internet connection."
-                                            }
-                                        })
-                                    }
-                                },
-                                modifier = Modifier.fillMaxSize()
-                            )
-                            
-                            // Play button overlay if not playing
-                            if (isVideoLoaded && !isPlaying) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .background(Color.Black.copy(alpha = 0.2f))
-                                        .clickable { youtubePlayer?.play() },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Surface(
-                                        modifier = Modifier.size(64.dp),
-                                        shape = CircleShape,
-                                        color = Color.White.copy(alpha = 0.9f)
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Icon(
-                                                Icons.Filled.PlayArrow,
-                                                contentDescription = "Play",
-                                                tint = BrandBlue,
-                                                modifier = Modifier.size(40.dp)
-                                            )
-                                        }
-                                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        // YouTube thumbnail as backdrop
+                        coil.compose.AsyncImage(
+                            model = "https://img.youtube.com/vi/$videoId/hqdefault.jpg",
+                            contentDescription = null,
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                        // Dark overlay for play-button contrast
+                        Box(
+                            Modifier
+                                .fillMaxSize()
+                                .background(Color.Black.copy(alpha = 0.35f))
+                        )
+                        // Centered play button + label
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Surface(
+                                modifier = Modifier.size(72.dp),
+                                shape = CircleShape,
+                                color = Color.White.copy(alpha = 0.95f),
+                                shadowElevation = 6.dp
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        Icons.Filled.PlayArrow,
+                                        contentDescription = "Play video",
+                                        tint = BrandBlue,
+                                        modifier = Modifier.size(44.dp)
+                                    )
                                 }
                             }
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                "Play Video",
+                                color = Color.White,
+                                fontWeight = FontWeight.SemiBold,
+                                style = MaterialTheme.typography.titleMedium
+                            )
                         }
                     }
                 }
@@ -743,7 +743,13 @@ fun Step2LearningVideoScreen(
                                 line = line,
                                 isActive = isActive,
                                 onClick = {
-                                    youtubePlayer?.seekTo(line.time)
+                                    // Transcript click opens the dedicated video player at the chosen timestamp.
+                                    val encodedTitle = java.net.URLEncoder.encode(
+                                        module?.title ?: "Lesson Video", "UTF-8"
+                                    )
+                                    navController.navigate(
+                                        "video_player/$videoId/$encodedTitle/${line.time.toInt()}"
+                                    )
                                 }
                             )
                         }

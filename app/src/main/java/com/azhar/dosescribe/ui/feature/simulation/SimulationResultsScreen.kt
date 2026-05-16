@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -62,6 +63,29 @@ fun SimulationResultContent(
             }
         }
 
+        // ── Action Checklist (Step 5) ──
+        if (score.actionChecklist.isNotEmpty()) {
+            item {
+                Text(
+                    "Action Checklist",
+                    fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                    color = SimDeepBlue, modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+            items(score.actionChecklist) { ck ->
+                ChecklistRow(ck)
+            }
+        }
+
+        // ── Per-drug field comparison cards ──
+        item {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Drug-by-Drug Review",
+                fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                color = SimDeepBlue
+            )
+        }
         // Per-drug cards
         items(score.drugResults) { dr ->
             Card(colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -132,6 +156,33 @@ private fun SummaryRow(label: String, value: String) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(label, fontSize = 12.sp, color = SimMuted)
         Text(value, fontSize = 12.sp, color = SimDeepBlue, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
+private fun ChecklistRow(item: ChecklistItem) {
+    val (icon, tint, bg) = when (item.status) {
+        ChecklistStatus.DONE -> Triple(Icons.Filled.CheckCircle, SimSuccess, Color(0xFFEAF5EC))
+        ChecklistStatus.MISSED -> Triple(Icons.Filled.Cancel, SimDanger, Color(0xFFFFEBEE))
+        ChecklistStatus.NOT_NEEDED -> Triple(Icons.Filled.RadioButtonUnchecked, SimMuted, Color(0xFFF1F3F6))
+    }
+    Card(colors = CardDefaults.cardColors(containerColor = bg),
+        shape = RoundedCornerShape(10.dp)) {
+        Row(
+            Modifier.fillMaxWidth().padding(10.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            Icon(icon, null, tint = tint, modifier = Modifier.size(18.dp).padding(top = 2.dp))
+            Spacer(Modifier.width(8.dp))
+            Column(Modifier.weight(1f)) {
+                Text(item.title, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF222222))
+                Text("Your action: ${item.userValue}", fontSize = 11.sp, color = Color(0xFF333333))
+                Text("Expected:    ${item.expectedValue}", fontSize = 11.sp, color = SimMuted)
+                if (item.note.isNotBlank()) {
+                    Text(item.note, fontSize = 10.sp, color = tint, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
     }
 }
 

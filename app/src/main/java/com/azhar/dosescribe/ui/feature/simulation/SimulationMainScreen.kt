@@ -17,10 +17,13 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.PanTool
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
@@ -37,6 +40,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -101,17 +105,38 @@ fun SimulationMainScreen(
         }
 
         // Hand-Over primary button (bottom-left) — replaces basket + Exit
+        // Basket image sits BEHIND the button as a separate decorative element.
         if (!vm.locked) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.BottomStart
             ) {
-                SimPrimaryButton(
-                    label = "Hand Over",
-                    icon = Icons.Filled.PanTool,
-                    modifier = Modifier.padding(start = 22.dp, bottom = 22.dp),
-                    onClick = { vm.openHandOverConfirm() }
-                )
+                Box(
+                    modifier = Modifier
+                        .padding(start = 14.dp, bottom = 14.dp)
+                        .size(width = 150.dp, height = 110.dp)
+                ) {
+                    // Decorative basket (NOT clickable) — drawn first so it sits behind
+                    Image(
+                        painter = painterResource(R.drawable.basket),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .offset(x = (-6).dp, y = (-2).dp)
+                            .size(width = 120.dp, height = 90.dp)
+                            .zIndex(0f),
+                        contentScale = ContentScale.Fit
+                    )
+                    // Hand-Over button drawn ON TOP — only this is clickable
+                    SimPrimaryButton(
+                        label = "Hand Over",
+                        icon = Icons.Filled.PanTool,
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .zIndex(2f),
+                        onClick = { vm.openHandOverConfirm() }
+                    )
+                }
             }
         }
 
@@ -159,15 +184,53 @@ fun SimulationMainScreen(
             ) { ReportsPanel(vm = vm, onClose = { vm.toggleRail(RailButton.REPORTS) }) }
         }
 
+        // ── Patient-selected confirmation toast (auto-dismiss after 2.2s) ──
+        val justSelectedAt = vm.patientJustSelectedAt
+        var toastVisible by remember(justSelectedAt) { mutableStateOf(justSelectedAt > 0L) }
+        LaunchedEffect(justSelectedAt) {
+            if (justSelectedAt > 0L) {
+                toastVisible = true
+                delay(2200)
+                toastVisible = false
+            }
+        }
+        AnimatedVisibility(
+            visible = toastVisible && vm.selectedPatient != null,
+            enter = fadeIn() + scaleIn(initialScale = 0.85f),
+            exit = fadeOut(),
+            modifier = Modifier.fillMaxSize().padding(top = 18.dp)
+        ) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+                Surface(
+                    color = SimSuccess,
+                    shape = RoundedCornerShape(20.dp),
+                    shadowElevation = 8.dp
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Filled.CheckCircle, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "Patient selected: ${vm.selectedPatient?.name ?: ""}",
+                            color = Color.White, fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+        }
+
         // Modals
         if (vm.showPrescription) PrescriptionPopup(vm = vm)
         if (vm.showStorage != null) StorageScreen(
             storage = vm.showStorage!!,
             catalog = case.availableDrugs,
-            onAdd = {
-                vm.addDrugToCart(it)
+            onAdd = { drug, qty ->
+                repeat(qty) { vm.addDrugToCart(drug) }
                 vm.closeStorage()
-                vm.openLabelingFor(it.id)        // labeling reachable from storage
+                // NOTE: do NOT auto-open labeling — labeling is a separate step.
             },
             onClose = { vm.closeStorage() }
         )
@@ -313,92 +376,73 @@ private fun PharmacyRoom(vm: SimulationViewModel) {
                 .background(Brush.verticalGradient(listOf(Color(0xFFE3DFD7), Color(0xFFC8C2B6))))
         )
 
-        // Patient sprite (centered behind counter)
+        // Patient sprite (centered behind counter) — anchored slightly left.
+        // Tappable: tapping the patient re-shows the speech bubble.
         Image(
             painter = painterResource(case.patientSprite.drawableRes),
             contentDescription = null,
             modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 70.dp)
-                .offset(x = (-90).dp)
-                .fillMaxHeight(0.78f)
-                .width(220.dp),
+                .align(Alignment.BottomStart)
+                .padding(start = 80.dp, bottom = 70.dp)
+                .fillMaxHeight(0.74f)
+                .width(210.dp)
+                .zIndex(1f)
+                .clickable { vm.showSpeechBubble() },
             contentScale = ContentScale.Fit
         )
 
-        // Speech bubble (right of patient's head, left-pointing tail)
+        // Speech bubble — anchored to the TOP-LEFT, sitting just to the
+        // RIGHT of the patient's head. Anchored from TopStart (so it
+        // grows downward from the top) — this keeps it cleanly above the
+        // counter and avoids overlapping the busy shelf-item drawables
+        // (the bubble's white opaque background occludes the shelf
+        // texture behind it). Auto-hides a few seconds after appearing;
+        // re-appears when the patient sprite is tapped.
+        LaunchedEffect(vm.speechBubbleShownAt, caseStarted) {
+            if (caseStarted && vm.speechBubbleVisible) {
+                delay(4500)
+                vm.hideSpeechBubble()
+            }
+        }
         AnimatedVisibility(
-            visible = caseStarted,
-            enter = fadeIn(tween(500, delayMillis = 300)) +
+            visible = caseStarted && vm.speechBubbleVisible,
+            enter = fadeIn(tween(350)) +
                     scaleIn(animationSpec = spring(Spring.DampingRatioMediumBouncy), initialScale = 0.7f),
-            exit = fadeOut(),
+            exit = fadeOut(tween(220)),
             modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = 18.dp, start = 220.dp, end = 280.dp)
+                .align(Alignment.TopStart)
+                // Sprite head is roughly at start = 80 + width=210 = 290.dp
+                // Anchor bubble just to the RIGHT of the head, near the top.
+                .padding(start = 280.dp, top = 28.dp)
+                .fillMaxWidth(0.40f)
+                .zIndex(5f)
         ) { SpeechBubble(case.entryStatement) }
 
-        // Counter props ─────────────────────────────────────────
-        // Prescription paper (slightly left of center)
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(start = 200.dp, bottom = 30.dp)
-                .size(width = 110.dp, height = 60.dp)
-                .clickable { vm.openPrescription() }
-        ) {
-            Image(
-                painter = painterResource(R.drawable.prescription),
-                contentDescription = "Prescription",
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Fit
-            )
-        }
-        // Loose papers / clinical reference — center-left
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(start = 320.dp, bottom = 28.dp)
-                .size(width = 90.dp, height = 56.dp)
-                .clickable { vm.openClinicalReference() }
-        ) {
-            Image(
-                painter = painterResource(R.drawable.lab_reports),
-                contentDescription = "Clinical reference",
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Fit
-            )
-        }
-        // Calculator
-        Box(
+        // ─── Counter props row ──────────────────────────────────────
+        // All 4 props live in a single Row with EQUAL WEIGHTED zones,
+        // so they CANNOT overlap and each gets its own click target.
+        // Left padding (180.dp) keeps a safe gap from the Hand-Over
+        // button zone; right padding (230.dp) keeps clear of the desktop
+        // computer. Each prop fills its weighted slot — overlap is
+        // geometrically impossible.
+        Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 28.dp)
-                .offset(x = (-40).dp)
-                .size(width = 50.dp, height = 50.dp)
-                .clickable { vm.openCalculator() }
+                .fillMaxWidth()
+                .padding(start = 180.dp, end = 230.dp, bottom = 26.dp)
+                .height(86.dp)
+                .zIndex(2f),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.Bottom
         ) {
-            Image(
-                painter = painterResource(R.drawable.calculator),
-                contentDescription = "Calculator",
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Fit
-            )
-        }
-        // Books — between calculator and PC
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 24.dp)
-                .offset(x = 30.dp)
-                .size(width = 60.dp, height = 60.dp)
-                .clickable { vm.openClinicalReference() }
-        ) {
-            Image(
-                painter = painterResource(R.drawable.books),
-                contentDescription = "Books",
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Fit
-            )
+            CounterProp(R.drawable.prescription, "Prescription",
+                modifier = Modifier.weight(1f).fillMaxHeight()) { vm.openPrescription() }
+            CounterProp(R.drawable.calculator, "Calculator",
+                modifier = Modifier.weight(1f).fillMaxHeight()) { vm.openCalculator() }
+            CounterProp(R.drawable.lab_reports, "Reports",
+                modifier = Modifier.weight(1f).fillMaxHeight()) { vm.openReports() }
+            CounterProp(R.drawable.books, "Books",
+                modifier = Modifier.weight(1f).fillMaxHeight()) { vm.openClinicalReference() }
         }
 
         // Desktop computer (right side of counter)
@@ -406,12 +450,38 @@ private fun PharmacyRoom(vm: SimulationViewModel) {
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(end = 110.dp, bottom = 22.dp)
-                .fillMaxWidth(0.22f)
+                .fillMaxWidth(0.20f)
                 .fillMaxHeight(0.46f)
+                .zIndex(2f)
                 .clickable { vm.openPatientFiles() }
         ) {
             DesktopComputer(showTime = caseStarted)
         }
+    }
+}
+
+@Composable
+private fun CounterProp(
+    drawableRes: Int,
+    contentDescription: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    // Each prop owns its full weighted slot (modifier from caller).
+    // The whole slot is clickable so the hit target equals the visible area.
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 4.dp),
+        contentAlignment = Alignment.BottomCenter
+    ) {
+        Image(
+            painter = painterResource(drawableRes),
+            contentDescription = contentDescription,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Fit
+        )
     }
 }
 

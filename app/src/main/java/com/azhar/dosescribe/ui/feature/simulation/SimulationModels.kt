@@ -30,21 +30,25 @@ data class CatalogDrug(
 // ─────────────────────────────────────────────────────────────────
 // Auxiliary label options
 // ─────────────────────────────────────────────────────────────────
+data class AuxLabel(val text: String, val iconRes: Int? = null)
+
 object AuxiliaryLabels {
-    val ALL = listOf(
-        "Take with food",
-        "Take on empty stomach",
-        "Do not crush or chew",
-        "Shake well before use",
-        "Refrigerate; do not freeze",
-        "Avoid alcohol",
-        "May cause drowsiness",
-        "For external use only",
-        "Take at bedtime",
-        "Complete the full course",
-        "Avoid sun exposure",
-        "Do not take with dairy"
+    // Stored as strings on CompletedLabel for backward compatibility with scoring.
+    val WITH_ICONS: List<AuxLabel> = listOf(
+        AuxLabel("Take with food"),
+        AuxLabel("Take on empty stomach"),
+        AuxLabel("Do not crush or chew"),
+        AuxLabel("Shake well before use"),
+        AuxLabel("Refrigerate; do not freeze"),
+        AuxLabel("Avoid alcohol"),
+        AuxLabel("May cause drowsiness"),
+        AuxLabel("For external use only"),
+        AuxLabel("Take at bedtime"),
+        AuxLabel("Complete the full course"),
+        AuxLabel("Avoid sun exposure"),
+        AuxLabel("Do not take with dairy")
     )
+    val ALL: List<String> = WITH_ICONS.map { it.text }
 }
 
 // ─────────────────────────────────────────────────────────────────
@@ -87,6 +91,51 @@ data class Prescription(
 data class ChatQa(val question: String, val answer: String)
 
 // ─────────────────────────────────────────────────────────────────
+// "Ask About" — predefined counselling / history question chips.
+// Used by the redesigned chat screen.
+// ─────────────────────────────────────────────────────────────────
+data class AskQuestion(
+    val id: String,
+    val title: String,            // chip label, e.g. "Allergies"
+    val questionText: String,     // pharmacist bubble text
+    val patientAnswer: String     // patient bubble text
+)
+
+object AskAboutCatalog {
+    val DEFAULT: List<AskQuestion> = listOf(
+        AskQuestion("age", "Age",
+            "What is your age?", "I'd rather not say."),
+        AskQuestion("alcohol", "Alcohol Consumption",
+            "Do you consume alcohol?", "No, I do not drink alcohol."),
+        AskQuestion("allergies", "Allergies",
+            "Do you have any allergies?", "I'm not sure."),
+        AskQuestion("breast_feeding", "Breast Feeding",
+            "Are you breastfeeding?", "No."),
+        AskQuestion("previous_disease", "Previous disease",
+            "Do you have any previous disease or medical condition?",
+            "I have high blood pressure."),
+        AskQuestion("previous_med", "Previous use of medication",
+            "Have you used this medicine before?", "No, this is my first time."),
+        AskQuestion("current_meds", "Current medications",
+            "What medications are you currently taking?",
+            "I take amlodipine for blood pressure."),
+        AskQuestion("pregnancy", "Pregnancy",
+            "Are you currently pregnant or planning to be?", "No."),
+        AskQuestion("smoking", "Smoking",
+            "Do you smoke tobacco?", "No, I don't smoke."),
+        AskQuestion("symptoms", "Symptoms",
+            "What symptoms are you experiencing right now?",
+            "I have a mild headache and feel tired."),
+        AskQuestion("medical_history", "Medical history",
+            "Could you share your medical history?",
+            "Hypertension diagnosed five years ago."),
+        AskQuestion("diet", "Diet",
+            "Can you describe your typical diet?",
+            "Mostly home-cooked meals, low salt.")
+    )
+}
+
+// ─────────────────────────────────────────────────────────────────
 // A complete authored Case
 // ─────────────────────────────────────────────────────────────────
 data class SimulationCase(
@@ -110,6 +159,7 @@ data class CompletedLabel(
     val quantity: String,
     val dose: String,
     val direction: String,
+    val duration: String = "",
     val auxLabels: List<String>,
     val createdAt: Long = System.currentTimeMillis()
 )
@@ -181,9 +231,24 @@ data class CaseScore(
     val timeSeconds: Long,
     val calculatorsUsed: Int,
     val chatQuestionsAsked: Int,
-    val notesLength: Int
+    val notesLength: Int,
+    val actionChecklist: List<ChecklistItem> = emptyList()
 ) {
     val percent: Int get() = if (total == 0) 0 else (correct * 100) / total
     val passed: Boolean get() = percent >= 70
 }
+
+// ─────────────────────────────────────────────────────────────────
+// Action checklist (Step 5 results screen). Not persisted to Firestore
+// (the admin contract is unchanged) — used purely for the UI summary.
+// ─────────────────────────────────────────────────────────────────
+enum class ChecklistStatus { DONE, MISSED, NOT_NEEDED }
+
+data class ChecklistItem(
+    val title: String,
+    val userValue: String,
+    val expectedValue: String,
+    val status: ChecklistStatus,
+    val note: String = ""
+)
 

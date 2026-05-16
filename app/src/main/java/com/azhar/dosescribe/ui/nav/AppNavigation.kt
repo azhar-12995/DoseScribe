@@ -67,6 +67,30 @@ fun AppNavigation() {
             LessonStepsScreen(navController = navController, moduleId = moduleId, progressVm = sharedProgressVm)
         }
 
+        // Dedicated full-screen video player
+        composable("video_player/{videoId}/{title}") { backStackEntry ->
+            val videoId = backStackEntry.arguments?.getString("videoId") ?: ""
+            val title = java.net.URLDecoder.decode(
+                backStackEntry.arguments?.getString("title") ?: "Lesson Video",
+                "UTF-8"
+            )
+            VideoPlayerScreen(navController = navController, videoId = videoId, title = title)
+        }
+        composable("video_player/{videoId}/{title}/{start}") { backStackEntry ->
+            val videoId = backStackEntry.arguments?.getString("videoId") ?: ""
+            val title = java.net.URLDecoder.decode(
+                backStackEntry.arguments?.getString("title") ?: "Lesson Video",
+                "UTF-8"
+            )
+            val start = backStackEntry.arguments?.getString("start")?.toIntOrNull() ?: 0
+            VideoPlayerScreen(
+                navController = navController,
+                videoId = videoId,
+                title = title,
+                startSeconds = start
+            )
+        }
+
         // Individual step screen
         composable("lesson_step/{moduleId}/{stepIndex}") { backStackEntry ->
             val moduleId = backStackEntry.arguments?.getString("moduleId") ?: ""

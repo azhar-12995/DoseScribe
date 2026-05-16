@@ -68,6 +68,35 @@ class SimulationViewModel @Inject constructor(
     var notes: String by mutableStateOf("")
         private set
 
+    // Patient selected from PC / patient files
+    var selectedPatient: StoredPatient? by mutableStateOf(null)
+        private set
+    var patientJustSelectedAt: Long by mutableStateOf(0L)
+        private set
+
+    // ── Speech-bubble visibility ──────────────────────────────────
+    // Shown on case start, auto-hides after a few seconds, hidden when
+    // the user opens any modal/rail, re-shown when the patient sprite
+    // is tapped.
+    var speechBubbleVisible: Boolean by mutableStateOf(true)
+        private set
+    var speechBubbleShownAt: Long by mutableStateOf(System.currentTimeMillis())
+        private set
+
+    fun showSpeechBubble() {
+        speechBubbleVisible = true
+        speechBubbleShownAt = System.currentTimeMillis()
+    }
+    fun hideSpeechBubble() { speechBubbleVisible = false }
+
+    // Action tracking (for results checklist)
+    var reportsViewed: Boolean by mutableStateOf(false)
+        private set
+    var booksViewed: Boolean by mutableStateOf(false)
+        private set
+    var prescriptionViewed: Boolean by mutableStateOf(false)
+        private set
+
     // Persisted prescription scroll position (pixels from top of LazyColumn)
     var prescriptionScrollIndex: Int by mutableStateOf(0)
         private set
@@ -87,15 +116,23 @@ class SimulationViewModel @Inject constructor(
         }
     }
 
-    private fun touch() { lastActionAt = System.currentTimeMillis() }
+    private fun touch() {
+        lastActionAt = System.currentTimeMillis()
+        // Any user action dismisses the speech bubble.
+        speechBubbleVisible = false
+    }
 
     // ── Rail / modal controls ─────────────────────────────────────
     fun toggleRail(button: RailButton) {
         if (locked) return
         activeRail = if (activeRail == button) null else button
-        // Some rail buttons re-use modals
+        // Some rail buttons re-use modals / mark viewed
         when (button) {
-            RailButton.PRESCRIPTION -> showPrescription = activeRail == RailButton.PRESCRIPTION
+            RailButton.PRESCRIPTION -> {
+                showPrescription = activeRail == RailButton.PRESCRIPTION
+                if (showPrescription) prescriptionViewed = true
+            }
+            RailButton.REPORTS -> { if (activeRail == RailButton.REPORTS) reportsViewed = true }
             else -> Unit
         }
         touch()
@@ -103,7 +140,9 @@ class SimulationViewModel @Inject constructor(
 
     fun openPrescription() {
         if (locked) return
-        showPrescription = true; activeRail = RailButton.PRESCRIPTION; touch()
+        showPrescription = true; activeRail = RailButton.PRESCRIPTION
+        prescriptionViewed = true
+        touch()
     }
     fun closePrescription() {
         showPrescription = false
@@ -119,8 +158,16 @@ class SimulationViewModel @Inject constructor(
     fun openPatientFiles() { if (locked) return; showPatientFiles = true; touch() }
     fun closePatientFiles() { showPatientFiles = false }
 
-    fun openClinicalReference() { if (locked) return; showClinicalReference = true; touch() }
+    fun openClinicalReference() { if (locked) return; showClinicalReference = true; booksViewed = true; touch() }
     fun closeClinicalReference() { showClinicalReference = false }
+
+    /** Open the reports panel (also called from the lab_reports counter prop). */
+    fun openReports() {
+        if (locked) return
+        activeRail = RailButton.REPORTS
+        reportsViewed = true
+        touch()
+    }
 
     fun openLabeling() { if (locked) return; labelingPrefillDrugId = null; editingLabelId = null; showLabeling = true; touch() }
     /** Open labeling pre-filled with a specific drug (from Cart / Drugs panel / Storage Add). */
@@ -171,6 +218,17 @@ class SimulationViewModel @Inject constructor(
         touch()
     }
 
+    /** Update the quantity for a cart line. If qty <= 0, the line is removed. */
+    fun setCartQuantity(drugId: String, qty: Int) {
+        if (locked) return
+        val idx = cart.indexOfFirst { it.drugId == drugId }
+        if (idx >= 0) {
+            if (qty <= 0) cart.removeAt(idx)
+            else cart[idx] = cart[idx].copy(quantity = qty)
+            touch()
+        }
+    }
+
     // ── Labels ────────────────────────────────────────────────────
     fun addLabel(label: CompletedLabel) {
         if (locked) return
@@ -216,6 +274,29 @@ class SimulationViewModel @Inject constructor(
 
     // ── Patients ──────────────────────────────────────────────────
     fun addPatient(p: StoredPatient) { if (!locked) { storedPatients.add(p); touch() } }
+    fun selectPatient(p: StoredPatient) {
+        if (locked) return
+        selectedPatient = p
+        patientJustSelectedAt = System.currentTimeMillis()
+        touch()
+        // Auto-advance the workflow: open the "Build a Label" screen so
+        // the pharmacist can immediately start building labels (with the
+        // full drug/dose/aux/save flow) for the selected patient.
+        labelingPrefillDrugId = null
+        editingLabelId = null
+        showLabeling = true
+    }
+
+    // ── Ask About / chat redesign ─────────────────────────────────
+    /** Add a pharmacist→patient Q/A pair from the Ask-About panel. */
+    fun askAbout(q: AskQuestion) {
+        if (locked) return
+        // Avoid duplicates: replace existing entry if the same question was asked.
+        chatLog.removeAll { it.question == q.questionText }
+        chatLog.add(ChatExchange(q.questionText, q.patientAnswer))
+        touch()
+    }
+    fun clearChat() { chatLog.clear(); touch() }
 
     // ─────────────────────────────────────────────────────────────
     // Hand-over → scoring → submission
@@ -285,6 +366,9 @@ class SimulationViewModel @Inject constructor(
         val total = drugResults.sumOf { it.total }
         val timeSec = (System.currentTimeMillis() - sessionStartedAt) / 1000
 
+        // ── Build the action checklist (Step 5 results) ──
+        val checklist = buildActionChecklist(c)
+
         val score = CaseScore(
             caseId = c.id,
             moduleId = c.moduleId,
@@ -294,11 +378,105 @@ class SimulationViewModel @Inject constructor(
             timeSeconds = timeSec,
             calculatorsUsed = calculatorLog.size,
             chatQuestionsAsked = chatLog.size,
-            notesLength = notes.length
+            notesLength = notes.length,
+            actionChecklist = checklist
         )
         lastScore = score
         submitToAdmin(score)
         return score
+    }
+
+    private fun buildActionChecklist(c: SimulationCase): List<ChecklistItem> {
+        val items = c.prescription.items
+        val expectedDrugIds = items.map { it.expectedDrugId }.toSet()
+        val pickedDrugIds = completedLabels.map { it.drugId }.toSet()
+        val allExpectedAux = items.flatMap { it.expectedAuxLabels }.toSet()
+        val pickedAux = completedLabels.flatMap { it.auxLabels }.toSet()
+
+        return listOf(
+            ChecklistItem(
+                title = "Patient selected",
+                userValue = selectedPatient?.name ?: "—",
+                expectedValue = c.prescription.patientName,
+                status = if (selectedPatient != null) ChecklistStatus.DONE else ChecklistStatus.MISSED
+            ),
+            ChecklistItem(
+                title = "Prescription reviewed",
+                userValue = if (prescriptionViewed) "Yes" else "No",
+                expectedValue = "Required",
+                status = if (prescriptionViewed) ChecklistStatus.DONE else ChecklistStatus.MISSED
+            ),
+            ChecklistItem(
+                title = "Drugs selected",
+                userValue = pickedDrugIds.size.toString(),
+                expectedValue = expectedDrugIds.size.toString(),
+                status = if (pickedDrugIds == expectedDrugIds) ChecklistStatus.DONE
+                else ChecklistStatus.MISSED,
+                note = if (pickedDrugIds != expectedDrugIds) "Mismatch with prescription" else ""
+            ),
+            ChecklistItem(
+                title = "Quantities entered",
+                userValue = completedLabels.count { it.quantity.isNotBlank() }.toString(),
+                expectedValue = items.size.toString(),
+                status = if (completedLabels.count { it.quantity.isNotBlank() } >= items.size)
+                    ChecklistStatus.DONE else ChecklistStatus.MISSED
+            ),
+            ChecklistItem(
+                title = "Labels created",
+                userValue = completedLabels.size.toString(),
+                expectedValue = items.count { !it.mustHold }.toString(),
+                status = if (completedLabels.size >= items.count { !it.mustHold })
+                    ChecklistStatus.DONE else ChecklistStatus.MISSED
+            ),
+            ChecklistItem(
+                title = "Auxiliary labels selected",
+                userValue = pickedAux.joinToString().ifBlank { "—" },
+                expectedValue = allExpectedAux.joinToString().ifBlank { "none required" },
+                status = when {
+                    allExpectedAux.isEmpty() -> ChecklistStatus.NOT_NEEDED
+                    pickedAux.containsAll(allExpectedAux) -> ChecklistStatus.DONE
+                    else -> ChecklistStatus.MISSED
+                }
+            ),
+            ChecklistItem(
+                title = "Reports checked",
+                userValue = if (reportsViewed) "Yes" else "No",
+                expectedValue = "Recommended",
+                status = if (reportsViewed) ChecklistStatus.DONE else ChecklistStatus.MISSED
+            ),
+            ChecklistItem(
+                title = "Books / references checked",
+                userValue = if (booksViewed) "Yes" else "No",
+                expectedValue = "Recommended",
+                status = if (booksViewed) ChecklistStatus.DONE else ChecklistStatus.NOT_NEEDED
+            ),
+            ChecklistItem(
+                title = "Calculator used",
+                userValue = "${calculatorLog.size} time(s)",
+                expectedValue = "As needed",
+                status = if (calculatorLog.isNotEmpty()) ChecklistStatus.DONE
+                else ChecklistStatus.NOT_NEEDED
+            ),
+            ChecklistItem(
+                title = "Patient communication",
+                userValue = "${chatLog.size} question(s) asked",
+                expectedValue = "${c.chatQuestions.size} available",
+                status = if (chatLog.isNotEmpty()) ChecklistStatus.DONE else ChecklistStatus.MISSED
+            ),
+            ChecklistItem(
+                title = "Holds raised",
+                userValue = holds.size.toString(),
+                expectedValue = items.count { it.mustHold }.toString(),
+                status = if (holds.size >= items.count { it.mustHold }) ChecklistStatus.DONE
+                else ChecklistStatus.MISSED
+            ),
+            ChecklistItem(
+                title = "Handover completed",
+                userValue = "Submitted",
+                expectedValue = "Required",
+                status = ChecklistStatus.DONE
+            )
+        )
     }
 
     // ─────────────────────────────────────────────────────────────

@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -229,7 +230,16 @@ fun SlideInPanel(
         modifier = modifier
             .width(w)
             .fillMaxHeight()
-            .shadow(10.dp),
+            .shadow(10.dp)
+            // Consume all tap events so clicks in empty panel area do
+            // NOT fall through to the pharmacy scene behind (this was
+            // making the Chat panel "close automatically" because taps
+            // on its empty area opened the Calculator counter prop).
+            .clickable(
+                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                indication = null,
+                onClick = {}
+            ),
         color = SimWhite,
         shape = RoundedCornerShape(topStart = 14.dp, bottomStart = 14.dp)
     ) {

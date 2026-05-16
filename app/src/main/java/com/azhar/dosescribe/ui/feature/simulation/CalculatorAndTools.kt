@@ -8,8 +8,10 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -20,11 +22,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import kotlin.math.sqrt
 
 // ─────────────────────────────────────────────────────────────────
 // Calculator menu — tile grid; tapping a tile opens that tool
@@ -54,21 +56,33 @@ private val ALL_CALC_TOOLS = listOf(
 @Composable
 fun CalculatorMenuDialog(vm: SimulationViewModel, onClose: () -> Unit) {
     var openedTool by remember { mutableStateOf<String?>(null) }
+    var tab by remember { mutableStateOf(0) }
 
-    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    Dialog(
+        onDismissRequest = onClose,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
+    ) {
         Surface(
-            modifier = Modifier.fillMaxWidth(0.85f).fillMaxHeight(0.92f),
-            shape = RoundedCornerShape(12.dp),
+            modifier = Modifier.fillMaxWidth(0.98f).fillMaxHeight(0.98f),
+            shape = RoundedCornerShape(16.dp),
             color = SimSurface,
-            shadowElevation = 12.dp
+            shadowElevation = 14.dp
         ) {
             Column(Modifier.fillMaxSize()) {
+                // Compact title row + tabs
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 10.dp, bottom = 6.dp),
+                    modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 0.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        if (openedTool == null) "Calculators" else "Calculator",
+                        when {
+                            openedTool != null -> "Calculator"
+                            tab == 0 -> "Calculator"
+                            else -> "Clinical Calculators"
+                        },
                         fontWeight = FontWeight.Bold, fontSize = 16.sp,
                         modifier = Modifier.weight(1f), color = SimDeepBlue
                     )
@@ -76,36 +90,318 @@ fun CalculatorMenuDialog(vm: SimulationViewModel, onClose: () -> Unit) {
                         TextButton(onClick = { openedTool = null }) { Text("← All tools") }
                     IconButton(onClick = onClose) { Icon(Icons.Filled.Close, "close") }
                 }
+                if (openedTool == null) {
+                    TabRow(
+                        selectedTabIndex = tab,
+                        containerColor = Color.White,
+                        contentColor = SimDeepBlue,
+                        modifier = Modifier.height(36.dp)
+                    ) {
+                        Tab(selected = tab == 0, onClick = { tab = 0 },
+                            text = { Text("Calculator", fontSize = 12.sp) })
+                        Tab(selected = tab == 1, onClick = { tab = 1 },
+                            text = { Text("Clinical Tools", fontSize = 12.sp) })
+                    }
+                }
                 HorizontalDivider(color = Color(0xFFEEEEEE))
 
-                if (openedTool == null) {
-                    LazyVerticalGrid(
-                        columns = GridCells.Adaptive(minSize = 160.dp),
-                        modifier = Modifier.fillMaxSize().padding(12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        items(ALL_CALC_TOOLS) { tool ->
-                            CalcTile(tool) { openedTool = tool.key }
+                when {
+                    openedTool != null -> {
+                        Box(modifier = Modifier.fillMaxSize().padding(10.dp)) {
+                            CalculatorTool(
+                                key = openedTool!!,
+                                onResult = { inputs, result ->
+                                    vm.logCalculator(
+                                        tool = ALL_CALC_TOOLS.first { it.key == openedTool }.title,
+                                        inputs = inputs,
+                                        result = result
+                                    )
+                                }
+                            )
                         }
                     }
-                } else {
-                    Box(modifier = Modifier.fillMaxSize().padding(12.dp)) {
-                        CalculatorTool(
-                            key = openedTool!!,
-                            onResult = { inputs, result ->
-                                vm.logCalculator(
-                                    tool = ALL_CALC_TOOLS.first { it.key == openedTool }.title,
-                                    inputs = inputs,
-                                    result = result
-                                )
+                    tab == 0 -> {
+                        // Tight padding so the calculator gets MAX usable space
+                        Box(Modifier.fillMaxSize().padding(8.dp)) {
+                            BasicCalculator(onResult = { expression, result ->
+                                vm.logCalculator("Basic Calculator", mapOf("expression" to expression), result)
+                            })
+                        }
+                    }
+                    else -> {
+                        LazyVerticalGrid(
+                            columns = GridCells.Adaptive(minSize = 180.dp),
+                            modifier = Modifier.fillMaxSize().padding(10.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(ALL_CALC_TOOLS) { tool ->
+                                CalcTile(tool) { openedTool = tool.key }
                             }
-                        )
+                        }
                     }
                 }
             }
         }
     }
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Basic general-purpose calculator — rewritten for clarity:
+//   • Large 5×4 button grid that fills the available space
+//   • High-contrast colors (dark display, big white digits)
+//   • Each operator clearly labelled
+//   • Real-time live result + final = commit
+// ─────────────────────────────────────────────────────────────────
+@Composable
+fun BasicCalculator(onResult: (String, String) -> Unit = { _, _ -> }) {
+    var expression by remember { mutableStateOf("") }
+    var liveResult by remember { mutableStateOf("0") }
+
+    fun recompute() {
+        liveResult = if (expression.isBlank()) "0" else (evalExpression(expression) ?: "…")
+    }
+
+    fun append(s: String) {
+        val ops = setOf('+', '−', '×', '÷')
+        val last = expression.lastOrNull()
+        val incoming = s.firstOrNull()
+        // If user taps two operators in a row, replace the previous one
+        // (typical calculator behavior).
+        if (incoming != null && incoming in ops && last != null && last in ops) {
+            expression = expression.dropLast(1) + s
+        } else if (s == "." ) {
+            // Prevent two dots in the same number.
+            val lastNumStart = expression.indexOfLast { it in ops } + 1
+            val curNum = expression.substring(lastNumStart)
+            if (!curNum.contains('.')) expression += s
+        } else {
+            expression += s
+        }
+        recompute()
+    }
+
+    fun clear() { expression = ""; liveResult = "0" }
+    fun backspace() {
+        if (expression.isNotEmpty()) expression = expression.dropLast(1)
+        recompute()
+    }
+    fun equals() {
+        val r = evalExpression(expression)
+        if (r != null) {
+            onResult(expression, r)
+            expression = r
+            liveResult = r
+        } else {
+            liveResult = "Error"
+        }
+    }
+
+    // Layout: buttons on the LEFT (60% width), display on the RIGHT (40%).
+    Row(
+        modifier = Modifier.fillMaxSize(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        // ── LEFT: Buttons grid (5 rows × 4 cols) ──
+        data class Key(val label: String, val tone: CalcKeyTone, val action: () -> Unit)
+        val rows: List<List<Key>> = listOf(
+            listOf(
+                Key("C",  CalcKeyTone.DANGER)  { clear() },
+                Key("⌫",  CalcKeyTone.DANGER)  { backspace() },
+                Key("(",  CalcKeyTone.NEUTRAL) { append("(") },
+                Key(")",  CalcKeyTone.NEUTRAL) { append(")") }
+            ),
+            listOf(
+                Key("7", CalcKeyTone.DIGIT)  { append("7") },
+                Key("8", CalcKeyTone.DIGIT)  { append("8") },
+                Key("9", CalcKeyTone.DIGIT)  { append("9") },
+                Key("÷", CalcKeyTone.PRIMARY){ append("÷") }
+            ),
+            listOf(
+                Key("4", CalcKeyTone.DIGIT)  { append("4") },
+                Key("5", CalcKeyTone.DIGIT)  { append("5") },
+                Key("6", CalcKeyTone.DIGIT)  { append("6") },
+                Key("×", CalcKeyTone.PRIMARY){ append("×") }
+            ),
+            listOf(
+                Key("1", CalcKeyTone.DIGIT)  { append("1") },
+                Key("2", CalcKeyTone.DIGIT)  { append("2") },
+                Key("3", CalcKeyTone.DIGIT)  { append("3") },
+                Key("−", CalcKeyTone.PRIMARY){ append("−") }
+            ),
+            listOf(
+                Key("0", CalcKeyTone.DIGIT)  { append("0") },
+                Key(".", CalcKeyTone.DIGIT)  { append(".") },
+                Key("=", CalcKeyTone.EQUALS) { equals() },
+                Key("+", CalcKeyTone.PRIMARY){ append("+") }
+            )
+        )
+        Column(
+            modifier = Modifier.weight(0.6f).fillMaxHeight(),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            rows.forEach { row ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    row.forEach { k ->
+                        CalcKey(
+                            label = k.label,
+                            tone = k.tone,
+                            modifier = Modifier.weight(1f).fillMaxHeight(),
+                            onClick = k.action
+                        )
+                    }
+                }
+            }
+        }
+
+        // ── RIGHT: Display ──
+        Surface(
+            modifier = Modifier.weight(0.4f).fillMaxHeight(),
+            color = Color(0xFF0F1B2A),
+            shape = RoundedCornerShape(14.dp),
+            shadowElevation = 4.dp
+        ) {
+            Column(
+                Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalArrangement = Arrangement.Bottom,
+                horizontalAlignment = Alignment.End
+            ) {
+                Text(
+                    text = if (expression.isBlank()) " " else expression,
+                    color = Color(0xFFBFD0E2),
+                    fontSize = 16.sp,
+                    maxLines = 4,
+                    textAlign = TextAlign.End
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = liveResult,
+                    color = Color.White,
+                    fontSize = 44.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    textAlign = TextAlign.End
+                )
+            }
+        }
+    }
+}
+
+private enum class CalcKeyTone { DIGIT, PRIMARY, DANGER, NEUTRAL, EQUALS }
+
+@Composable
+private fun CalcKey(
+    label: String,
+    modifier: Modifier = Modifier,
+    tone: CalcKeyTone,
+    onClick: () -> Unit
+) {
+    val bg = when (tone) {
+        CalcKeyTone.PRIMARY -> SimDeepBlue
+        CalcKeyTone.EQUALS  -> Color(0xFF1E88E5)
+        CalcKeyTone.DANGER  -> Color(0xFFFDECEC)
+        CalcKeyTone.NEUTRAL -> Color(0xFFE9EEF5)
+        CalcKeyTone.DIGIT   -> Color.White
+    }
+    val fg = when (tone) {
+        CalcKeyTone.PRIMARY, CalcKeyTone.EQUALS -> Color.White
+        CalcKeyTone.DANGER  -> SimDanger
+        CalcKeyTone.NEUTRAL -> Color(0xFF2A2A2A)
+        CalcKeyTone.DIGIT   -> Color(0xFF1A2230)
+    }
+    Surface(
+        onClick = onClick,
+        modifier = modifier,
+        color = bg,
+        shape = RoundedCornerShape(14.dp),
+        shadowElevation = 3.dp
+    ) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(
+                text = label,
+                color = fg,
+                fontSize = 26.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+/**
+ * Tiny expression evaluator: supports + − × ÷, decimals and parentheses.
+ * Returns formatted result string, or null on parse / math error.
+ */
+private fun evalExpression(raw: String): String? {
+    if (raw.isBlank()) return null
+    val src = raw.replace('×', '*').replace('÷', '/').replace('−', '-')
+    // Recursive descent parser
+    return try {
+        val parser = ExprParser(src)
+        val v = parser.parseExpr()
+        if (!parser.atEnd()) return null
+        formatNumber(v)
+    } catch (_: Throwable) { null }
+}
+
+private class ExprParser(private val s: String) {
+    private var i = 0
+    fun atEnd(): Boolean { skip(); return i >= s.length }
+    private fun skip() { while (i < s.length && s[i].isWhitespace()) i++ }
+    private fun peek(): Char? { skip(); return if (i < s.length) s[i] else null }
+    private fun eat(): Char { skip(); return s[i++] }
+
+    fun parseExpr(): Double {
+        var v = parseTerm()
+        while (true) {
+            val c = peek() ?: return v
+            if (c == '+' || c == '-') { eat(); val r = parseTerm(); v = if (c == '+') v + r else v - r }
+            else return v
+        }
+    }
+    private fun parseTerm(): Double {
+        var v = parseFactor()
+        while (true) {
+            val c = peek() ?: return v
+            if (c == '*' || c == '/') {
+                eat()
+                val r = parseFactor()
+                v = if (c == '*') v * r else {
+                    if (r == 0.0) throw ArithmeticException("÷0"); v / r
+                }
+            } else return v
+        }
+    }
+    private fun parseFactor(): Double {
+        val c = peek() ?: throw IllegalStateException("expected number")
+        if (c == '+') { eat(); return parseFactor() }
+        if (c == '-') { eat(); return -parseFactor() }
+        if (c == '(') {
+            eat()
+            val v = parseExpr()
+            if (peek() != ')') throw IllegalStateException("missing )")
+            eat()
+            return v
+        }
+        // number
+        skip()
+        var j = i
+        while (j < s.length && (s[j].isDigit() || s[j] == '.')) j++
+        if (j == i) throw IllegalStateException("expected number")
+        val num = s.substring(i, j).toDouble()
+        i = j
+        return num
+    }
+}
+
+private fun formatNumber(d: Double): String {
+    if (d.isNaN() || d.isInfinite()) return "Error"
+    if (d == d.toLong().toDouble() && kotlin.math.abs(d) < 1e15) return d.toLong().toString()
+    val s = "%.6f".format(d).trimEnd('0').trimEnd('.')
+    return if (s.isEmpty()) "0" else s
 }
 
 @Composable
@@ -387,6 +683,17 @@ fun PatientFilesDialog(vm: SimulationViewModel, onClose: () -> Unit) {
                             Spacer(Modifier.height(8.dp))
                             Text("Notes:", fontSize = 12.sp, color = SimMuted)
                             Text(p.notes.ifBlank { "—" }, fontSize = 12.sp)
+                            Spacer(Modifier.weight(1f))
+                            Button(
+                                onClick = { vm.selectPatient(p); onClose() },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(containerColor = SimDeepBlue),
+                                shape = RoundedCornerShape(20.dp)
+                            ) {
+                                Icon(Icons.Filled.Check, null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("Select This Patient")
+                            }
                         }
                     }
                 }
@@ -400,38 +707,156 @@ fun PatientFilesDialog(vm: SimulationViewModel, onClose: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AddPatientDialog(onClose: () -> Unit, onSave: (StoredPatient) -> Unit) {
     var name by remember { mutableStateOf("") }
     var age by remember { mutableStateOf("") }
     var gender by remember { mutableStateOf("") }
+    var genderOpen by remember { mutableStateOf(false) }
+    var allergies by remember { mutableStateOf("") }
+    var history by remember { mutableStateOf("") }
+    var meds by remember { mutableStateOf("") }
     var city by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
+    val nameError = name.isBlank()
 
-    AlertDialog(
+    Dialog(
         onDismissRequest = onClose,
-        title = { Text("Add New Patient") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = age, onValueChange = { age = it }, label = { Text("Age") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = gender, onValueChange = { gender = it }, label = { Text("Gender") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = city, onValueChange = { city = it }, label = { Text("City") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text("Notes (optional)") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    if (name.isNotBlank()) onSave(
-                        StoredPatient("p_${System.currentTimeMillis()}", name, age, gender, city, notes)
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth(0.85f)
+                .fillMaxHeight(0.92f)
+                .imePadding(),
+            shape = RoundedCornerShape(14.dp),
+            color = Color.White,
+            shadowElevation = 12.dp
+        ) {
+            Column(Modifier.fillMaxSize()) {
+                Row(
+                    Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Add New Patient", fontWeight = FontWeight.Bold, fontSize = 16.sp,
+                        modifier = Modifier.weight(1f), color = SimDeepBlue)
+                    IconButton(onClick = onClose) { Icon(Icons.Filled.Close, "close") }
+                }
+                HorizontalDivider(color = Color(0xFFEEEEEE))
+
+                // Scrollable form body
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedTextField(
+                        value = name, onValueChange = { name = it },
+                        label = { Text("Patient Name *") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        shape = RoundedCornerShape(10.dp),
+                        isError = name.isNotEmpty() && nameError
                     )
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = SimDeepBlue)
-            ) { Text("Save") }
-        },
-        dismissButton = { TextButton(onClick = onClose) { Text("Cancel") } }
-    )
+                    OutlinedTextField(
+                        value = age, onValueChange = { age = it.filter { c -> c.isDigit() } },
+                        label = { Text("Age") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        shape = RoundedCornerShape(10.dp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                    ExposedDropdownMenuBox(expanded = genderOpen, onExpandedChange = { genderOpen = it }) {
+                        OutlinedTextField(
+                            value = gender, onValueChange = {}, readOnly = true,
+                            label = { Text("Gender") },
+                            trailingIcon = { Icon(if (genderOpen) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore, null) },
+                            modifier = Modifier.fillMaxWidth().menuAnchor(),
+                            shape = RoundedCornerShape(10.dp)
+                        )
+                        ExposedDropdownMenu(expanded = genderOpen, onDismissRequest = { genderOpen = false }) {
+                            listOf("Male", "Female").forEach { g ->
+                                DropdownMenuItem(text = { Text(g) },
+                                    onClick = { gender = g; genderOpen = false })
+                            }
+                        }
+                    }
+                    OutlinedTextField(
+                        value = city, onValueChange = { city = it },
+                        label = { Text("City") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        shape = RoundedCornerShape(10.dp)
+                    )
+                    OutlinedTextField(
+                        value = allergies, onValueChange = { allergies = it },
+                        label = { Text("Allergies") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        minLines = 2
+                    )
+                    OutlinedTextField(
+                        value = history, onValueChange = { history = it },
+                        label = { Text("Medical History") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        minLines = 2
+                    )
+                    OutlinedTextField(
+                        value = meds, onValueChange = { meds = it },
+                        label = { Text("Current Medications") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        minLines = 2
+                    )
+                    OutlinedTextField(
+                        value = notes, onValueChange = { notes = it },
+                        label = { Text("Notes (optional)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        minLines = 2
+                    )
+                    Spacer(Modifier.height(4.dp))
+                }
+
+                // Fixed action row
+                HorizontalDivider(color = Color(0xFFEEEEEE))
+                Row(
+                    Modifier.fillMaxWidth().padding(12.dp),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onClose) { Text("Cancel") }
+                    Spacer(Modifier.width(8.dp))
+                    Button(
+                        enabled = !nameError,
+                        onClick = {
+                            val combinedNotes = buildString {
+                                if (allergies.isNotBlank()) append("Allergies: $allergies\n")
+                                if (history.isNotBlank()) append("History: $history\n")
+                                if (meds.isNotBlank()) append("Current Meds: $meds\n")
+                                if (notes.isNotBlank()) append(notes)
+                            }.trim()
+                            onSave(
+                                StoredPatient(
+                                    id = "p_${System.currentTimeMillis()}",
+                                    name = name, age = age, gender = gender,
+                                    city = city, notes = combinedNotes
+                                )
+                            )
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = SimDeepBlue),
+                        shape = RoundedCornerShape(20.dp)
+                    ) { Text("Save Patient") }
+                }
+            }
+        }
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────
