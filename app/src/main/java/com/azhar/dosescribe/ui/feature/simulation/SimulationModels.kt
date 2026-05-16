@@ -35,17 +35,28 @@ data class AuxLabel(val text: String, val iconRes: Int? = null)
 object AuxiliaryLabels {
     // Stored as strings on CompletedLabel for backward compatibility with scoring.
     val WITH_ICONS: List<AuxLabel> = listOf(
-        AuxLabel("Take with food"),
-        AuxLabel("Take on empty stomach"),
-        AuxLabel("Do not crush or chew"),
-        AuxLabel("Shake well before use"),
-        AuxLabel("Refrigerate; do not freeze"),
+        AuxLabel("Take with food", R.drawable.take_with_food),
+        AuxLabel("Take on empty stomach", R.drawable.take_on_empty_stomach),
+        AuxLabel("Do not crush or chew", R.drawable.dont_chew_or_crush),
+        AuxLabel("Shake well before use", R.drawable.shake_well_before_use),
+        AuxLabel("Refrigerate; do not freeze", R.drawable.keep_in_fridge),
+        AuxLabel("May cause drowsiness", R.drawable.may_cause_drowsiness),
+        AuxLabel("For external use only", R.drawable.for_external_use_only),
+        AuxLabel("Avoid sun exposure", R.drawable.avoid_prolong_exposure_to_sunlight),
+        AuxLabel("Do not eat grapefruit", R.drawable.dont_eat_grapefruit),
+        AuxLabel("Oral use only", R.drawable.oral_use_only),
+        AuxLabel("Not for injection", R.drawable.not_for_inj),
+        AuxLabel("High alert medication", R.drawable.high_alert_medications),
+        AuxLabel("Contraindicated in pregnancy", R.drawable.contraindicated_in_preg),
+        AuxLabel("Dilute before administration", R.drawable.dilute_before_administration),
+        AuxLabel("Look alike sound alike (LASA)", R.drawable.look_a_like_lasa),
+        AuxLabel("Paralyzing agent", R.drawable.paralyzing_agent),
+        AuxLabel("Chemotherapy", R.drawable.chemotherapy),
+        AuxLabel("For IV use only", R.drawable.for_iv_use_only),
+        AuxLabel("For intrathecal use only", R.drawable.for_intrathecal_use),
         AuxLabel("Avoid alcohol"),
-        AuxLabel("May cause drowsiness"),
-        AuxLabel("For external use only"),
         AuxLabel("Take at bedtime"),
         AuxLabel("Complete the full course"),
-        AuxLabel("Avoid sun exposure"),
         AuxLabel("Do not take with dairy")
     )
     val ALL: List<String> = WITH_ICONS.map { it.text }
@@ -251,4 +262,3 @@ data class ChecklistItem(
     val status: ChecklistStatus,
     val note: String = ""
 )
-

@@ -405,6 +405,7 @@ private fun ModeChip(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun SavedLabelsDropdown(vm: SimulationViewModel) {
     var open by remember { mutableStateOf(true) }
@@ -476,13 +477,34 @@ private fun SavedLabelsDropdown(vm: SimulationViewModel) {
                                 Column(Modifier.weight(1f)) {
                                     Text(row.drugName, fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold, color = SimDeepBlue)
-                                    Text(
-                                        if (row.labelId != null) {
-                                            val l = labels.first { it.id == row.labelId }
-                                            "Qty: ${l.quantity.ifBlank { "—" }} · Dose: ${l.dose.ifBlank { "—" }}"
-                                        } else "—",
-                                        fontSize = 10.sp, color = Color(0xFF555555)
-                                    )
+                                    
+                                    if (row.labelId != null) {
+                                        val l = labels.first { it.id == row.labelId }
+                                        Text(
+                                            "Qty: ${l.quantity.ifBlank { "—" }} · Dose: ${l.dose.ifBlank { "—" }}",
+                                            fontSize = 10.sp, color = Color(0xFF555555)
+                                        )
+                                        if (l.auxLabels.isNotEmpty()) {
+                                            Spacer(Modifier.height(4.dp))
+                                            FlowRow(
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                                            ) {
+                                                l.auxLabels.forEach { text ->
+                                                    val auxInfo = AuxiliaryLabels.WITH_ICONS.find { it.text == text }
+                                                    if (auxInfo?.iconRes != null) {
+                                                        Image(
+                                                            painter = painterResource(auxInfo.iconRes),
+                                                            contentDescription = null,
+                                                            modifier = Modifier.size(14.dp)
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        Text("—", fontSize = 10.sp, color = Color(0xFF555555))
+                                    }
                                 }
                                 // Status pill
                                 Surface(
@@ -509,6 +531,7 @@ private fun SavedLabelsDropdown(vm: SimulationViewModel) {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun AuxChip(label: String, onRemove: () -> Unit) {
+    val auxInfo = AuxiliaryLabels.WITH_ICONS.find { it.text == label }
     Surface(
         shape = RoundedCornerShape(14.dp),
         color = SimDeepBlue.copy(alpha = 0.10f),
@@ -519,6 +542,14 @@ private fun AuxChip(label: String, onRemove: () -> Unit) {
                 .clickable { onRemove() },
             verticalAlignment = Alignment.CenterVertically
         ) {
+            if (auxInfo?.iconRes != null) {
+                Image(
+                    painter = painterResource(auxInfo.iconRes),
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(Modifier.width(6.dp))
+            }
             Text(label, fontSize = 11.sp, color = SimDeepBlue, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.width(4.dp))
             Icon(Icons.Filled.Close, null, tint = SimDeepBlue, modifier = Modifier.size(14.dp))
@@ -536,26 +567,26 @@ private fun AuxLabelPickerDialog(
         onDismissRequest = onClose,
         title = { Text("Select auxiliary labels") },
         text = {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 items(AuxiliaryLabels.WITH_ICONS) { aux ->
                     val checked = selected.contains(aux.text)
                     Row(
                         Modifier.fillMaxWidth()
                             .clickable { onToggle(aux.text) }
-                            .padding(vertical = 6.dp),
+                            .padding(vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Checkbox(checked = checked, onCheckedChange = null)
-                        Spacer(Modifier.width(6.dp))
+                        Spacer(Modifier.width(8.dp))
                         if (aux.iconRes != null) {
                             Image(
                                 painter = painterResource(aux.iconRes),
                                 contentDescription = null,
-                                modifier = Modifier.size(20.dp)
+                                modifier = Modifier.size(44.dp).clip(RoundedCornerShape(4.dp))
                             )
-                            Spacer(Modifier.width(6.dp))
+                            Spacer(Modifier.width(12.dp))
                         }
-                        Text(aux.text, fontSize = 12.sp)
+                        Text(aux.text, fontSize = 13.sp, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1f))
                     }
                 }
             }
@@ -653,19 +684,32 @@ private fun LabelPreview(
                 Text("AUXILIARY LABELS",
                     fontSize = 11.sp, color = SimMuted, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(4.dp))
-                aux.forEach {
+                aux.forEach { text ->
+                    val auxInfo = AuxiliaryLabels.WITH_ICONS.find { it.text == text }
                     Surface(
                         color = SimDeepBlue.copy(alpha = 0.10f),
                         shape = RoundedCornerShape(6.dp),
                         modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)
                     ) {
-                        Text(
-                            "• $it",
-                            fontSize = 12.sp,
-                            color = SimDeepBlue,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
-                        )
+                        Row(
+                            Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (auxInfo?.iconRes != null) {
+                                Image(
+                                    painter = painterResource(auxInfo.iconRes),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(Modifier.width(10.dp))
+                            }
+                            Text(
+                                text,
+                                fontSize = 12.sp,
+                                color = SimDeepBlue,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
                     }
                 }
             }
@@ -756,4 +800,3 @@ fun HoldFormDialog(vm: SimulationViewModel, onClose: () -> Unit) {
         dismissButton = { TextButton(onClick = onClose) { Text("Cancel") } }
     )
 }
-
