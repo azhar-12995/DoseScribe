@@ -48,6 +48,8 @@ class SimulationViewModel @Inject constructor(
         private set
     var showHandOverConfirm: Boolean by mutableStateOf(false)
         private set
+    var showTelephone: Boolean by mutableStateOf(false)
+        private set
 
     /** When labeling is opened from a specific drug (Cart/Drugs/Storage), this pre-fills the form. */
     var labelingPrefillDrugId: String? by mutableStateOf(null)
@@ -122,6 +124,12 @@ class SimulationViewModel @Inject constructor(
     fun openClinicalReference() { if (locked) return; showClinicalReference = true; touch() }
     fun closeClinicalReference() { showClinicalReference = false }
 
+    fun openReports() {
+        if (locked) return
+        activeRail = RailButton.REPORTS
+        touch()
+    }
+
     fun openLabeling() { if (locked) return; labelingPrefillDrugId = null; editingLabelId = null; showLabeling = true; touch() }
     /** Open labeling pre-filled with a specific drug (from Cart / Drugs panel / Storage Add). */
     fun openLabelingFor(drugId: String) {
@@ -144,6 +152,9 @@ class SimulationViewModel @Inject constructor(
     fun openHoldForm() { if (locked) return; showHoldForm = true; touch() }
     fun closeHoldForm() { showHoldForm = false }
 
+    fun openTelephone() { if (locked) return; showTelephone = true; touch() }
+    fun closeTelephone() { showTelephone = false }
+
     fun openHandOverConfirm() { if (locked) return; showHandOverConfirm = true }
     fun closeHandOverConfirm() { showHandOverConfirm = false }
 
@@ -154,13 +165,13 @@ class SimulationViewModel @Inject constructor(
     }
 
     // ── Cart / drug selection ─────────────────────────────────────
-    fun addDrugToCart(drug: CatalogDrug) {
+    fun addDrugToCart(drug: CatalogDrug, quantity: Int = 1) {
         if (locked) return
         val existing = cart.indexOfFirst { it.drugId == drug.id }
         if (existing >= 0) {
-            cart[existing] = cart[existing].copy(quantity = cart[existing].quantity + 1)
+            cart[existing] = cart[existing].copy(quantity = cart[existing].quantity + quantity)
         } else {
-            cart.add(CartItem(drug.id, drug.name, drug.strength))
+            cart.add(CartItem(drug.id, drug.name, drug.strength, quantity))
         }
         if (selectedDrugs.none { it.id == drug.id }) selectedDrugs.add(drug)
         touch()
@@ -350,4 +361,3 @@ class SimulationViewModel @Inject constructor(
         firestore.collection("simulation_results").add(payload)
     }
 }
-

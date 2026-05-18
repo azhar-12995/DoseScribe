@@ -481,4 +481,3 @@ fun ClinicalReferenceDialog(onClose: () -> Unit) {
         }
     }
 }
-

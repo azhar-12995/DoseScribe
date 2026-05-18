@@ -143,4 +143,3 @@ private fun RxChip(text: String) {
             .padding(horizontal = 8.dp, vertical = 4.dp)
     ) { Text(text, fontSize = 10.sp, color = Color(0xFF555555)) }
 }
-

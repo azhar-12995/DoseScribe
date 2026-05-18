@@ -119,4 +119,3 @@ private fun SummaryRow(label: String, value: String) {
         Text(value, fontSize = 12.sp, color = SimDeepBlue, fontWeight = FontWeight.SemiBold)
     }
 }
-

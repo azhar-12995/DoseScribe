@@ -186,4 +186,3 @@ data class CaseScore(
     val percent: Int get() = if (total == 0) 0 else (correct * 100) / total
     val passed: Boolean get() = percent >= 70
 }
-

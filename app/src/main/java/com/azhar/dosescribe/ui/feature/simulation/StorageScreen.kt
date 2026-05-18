@@ -1,215 +1,342 @@
 package com.azhar.dosescribe.ui.feature.simulation
 
+import androidx.compose.animation.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.azhar.dosescribe.R
 
-// ─────────────────────────────────────────────────────────────────
-// Storage screen — used for Shelf / Fridge / Safe
-// Alphabetical filter + search + product preview with Add/Discard
-// ─────────────────────────────────────────────────────────────────
 @Composable
 fun StorageScreen(
     storage: DrugStorage,
     catalog: List<CatalogDrug>,
-    onAdd: (CatalogDrug) -> Unit,
+    onAdd: (CatalogDrug, Int) -> Unit,
     onClose: () -> Unit
 ) {
     val available = catalog.filter { it.storage == storage }
     var query by remember { mutableStateOf("") }
-    var letter by remember { mutableStateOf<Char?>(null) }
-    var preview by remember { mutableStateOf<CatalogDrug?>(null) }
+    var selectedLetter by remember { mutableStateOf<Char?>(null) }
+    var selectedDrug by remember { mutableStateOf<CatalogDrug?>(null) }
+    var qty by remember { mutableStateOf(1) }
+    var addedToast by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(addedToast) {
+        if (addedToast != null) {
+            kotlinx.coroutines.delay(2000)
+            addedToast = null
+        }
+    }
 
     val filtered = available
         .filter { d ->
             (query.isBlank() || d.name.contains(query, ignoreCase = true)) &&
-                    (letter == null || d.name.firstOrNull()?.uppercaseChar() == letter)
+            (selectedLetter == null || d.name.firstOrNull()?.uppercaseChar() == selectedLetter)
         }
         .sortedBy { it.name }
 
-    val title = when (storage) {
-        DrugStorage.SHELF -> "Pharmacy Shelf"
-        DrugStorage.FRIDGE -> "Refrigerated Storage"
-        DrugStorage.SAFE -> "Controlled Drug Safe"
+    val bgRes = when (storage) {
+        DrugStorage.SHELF -> R.drawable.shelf_detail
+        DrugStorage.FRIDGE -> R.drawable.fridge_detail
+        DrugStorage.SAFE -> R.drawable.locker_detail
     }
 
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        containerColor = SimSurface
-    ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding).padding(12.dp)) {
-            // Header
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = SimDeepBlue)
-                Spacer(Modifier.weight(1f))
-                IconButton(onClick = onClose) { Icon(Icons.Filled.Close, "close") }
-            }
+    val sidebarBg = Color(0xFF2C2C2C)
+    val sidebarSurface = Color(0xFF4A4A4A)
 
-            // Search bar
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it },
-                modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-                placeholder = { Text("Search drug name…", fontSize = 12.sp) },
-                leadingIcon = { Icon(Icons.Filled.Search, null) },
-                singleLine = true,
-                shape = RoundedCornerShape(10.dp),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search)
-            )
-
-            // Alphabet row
-            val letters = ('A'..'Z').toList()
-            LazyRow(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+    Column(modifier = Modifier.fillMaxSize().background(Color(0xFF1A1A1A))) {
+        // TOP BAR
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                modifier = Modifier.clickable { onClose() },
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                item {
-                    AlphaChip(label = "All", selected = letter == null) { letter = null }
-                }
-                items(letters) { ch ->
-                    AlphaChip(label = ch.toString(), selected = letter == ch) {
-                        letter = if (letter == ch) null else ch
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = Color.White, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Back", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+
+        Row(modifier = Modifier.fillMaxSize()) {
+            // LEFT AREA: SHELF IMAGE
+            Box(modifier = Modifier.weight(1f).fillMaxHeight().padding(start = 12.dp, bottom = 12.dp)) {
+                Image(
+                    painter = painterResource(bgRes),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(12.dp)),
+                    contentScale = ContentScale.FillBounds
+                )
+
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 100.dp),
+                    contentPadding = PaddingValues(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(20.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    items(filtered) { drug ->
+                        DrugTileOnShelf(
+                            drug = drug,
+                            isSelected = selectedDrug?.id == drug.id,
+                            onClick = {
+                                selectedDrug = drug
+                                qty = 1
+                            }
+                        )
                     }
                 }
             }
 
-            // Drug grid
-            if (filtered.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No drugs match your filter.", color = SimMuted, fontSize = 12.sp)
-                }
-            } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 140.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxSize().padding(top = 6.dp)
-                ) {
-                    items(filtered) { drug ->
-                        DrugTile(drug = drug, onClick = { preview = drug })
+            // RIGHT SIDEBAR
+            Surface(
+                modifier = Modifier.width(360.dp).fillMaxHeight().padding(end = 12.dp, bottom = 12.dp),
+                color = sidebarBg,
+                shape = RoundedCornerShape(20.dp)
+            ) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    // Default State: Search & Alphabets
+                    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+                        OutlinedTextField(
+                            value = query,
+                            onValueChange = { query = it },
+                            modifier = Modifier.fillMaxWidth().height(48.dp),
+                            placeholder = { Text("Search Drug", color = Color.Gray, fontSize = 14.sp) },
+                            trailingIcon = { Icon(Icons.Default.Search, null, tint = Color.Gray) },
+                            singleLine = true,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedContainerColor = Color.White,
+                                unfocusedContainerColor = Color.White,
+                                focusedBorderColor = Color.Transparent,
+                                unfocusedBorderColor = Color.Transparent,
+                                focusedTextColor = Color.Black,
+                                unfocusedTextColor = Color.Black
+                            )
+                        )
+
+                        Spacer(Modifier.height(12.dp))
+                        Text("Alphabets", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(6.dp))
+
+                        val alphabets = ('A'..'Z').toList()
+                        LazyVerticalGrid(
+                            columns = GridCells.Fixed(9),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier.fillMaxWidth().height(90.dp)
+                        ) {
+                            item { AlphabetButton("ALL", selectedLetter == null) { selectedLetter = null } }
+                            items(alphabets) { char ->
+                                AlphabetButton(char.toString(), selectedLetter == char) { selectedLetter = char }
+                            }
+                        }
+
+                        Spacer(Modifier.height(16.dp))
+                        Text("Instructions", color = Color.White.copy(0.6f), fontSize = 13.sp)
+                        Text("Select a medication from the shelf to see details.", color = Color.White.copy(0.4f), fontSize = 11.sp)
+                    }
+
+                    // Detail State Overlay
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = selectedDrug != null,
+                        enter = fadeIn() + slideInVertically { it / 2 },
+                        exit = fadeOut() + slideOutVertically { it / 2 }
+                    ) {
+                        Surface(
+                            modifier = Modifier.fillMaxSize(),
+                            color = sidebarBg,
+                            shape = RoundedCornerShape(20.dp)
+                        ) {
+                            selectedDrug?.let { drug ->
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(16.dp)
+                                        .verticalScroll(rememberScrollState()),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                        IconButton(onClick = { selectedDrug = null }, modifier = Modifier.size(32.dp)) {
+                                            Icon(Icons.Default.Close, null, tint = Color.White)
+                                        }
+                                    }
+
+                                    // Image
+                                    Surface(
+                                        modifier = Modifier.fillMaxWidth().height(150.dp),
+                                        color = Color.White,
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                                            if (drug.drawableRes != null) {
+                                                Image(
+                                                    painter = painterResource(drug.drawableRes),
+                                                    contentDescription = null,
+                                                    modifier = Modifier.fillMaxSize().padding(10.dp),
+                                                    contentScale = ContentScale.Fit
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    Spacer(Modifier.height(12.dp))
+
+                                    Text(drug.name, color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp, textAlign = TextAlign.Center)
+                                    Text(drug.strength, color = Color.White.copy(0.7f), fontSize = 14.sp, textAlign = TextAlign.Center)
+
+                                    Spacer(Modifier.height(24.dp))
+
+                                    // One Row: Quantity Selector + Add Button
+                                    Surface(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        color = sidebarSurface,
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(8.dp).fillMaxWidth(),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            // --- Quantity Controls ---
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier
+                                                    .background(Color.White.copy(0.1f), RoundedCornerShape(10.dp))
+                                                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                                            ) {
+                                                IconButton(onClick = { if (qty > 1) qty-- }, modifier = Modifier.size(32.dp)) {
+                                                    Icon(Icons.Default.Remove, null, tint = Color.White)
+                                                }
+                                                Text(
+                                                    qty.toString().padStart(2, '0'),
+                                                    color = Color.White,
+                                                    modifier = Modifier.padding(horizontal = 6.dp),
+                                                    fontSize = 16.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                                IconButton(onClick = { qty++ }, modifier = Modifier.size(32.dp)) {
+                                                    Icon(Icons.Default.Add, null, tint = Color.White)
+                                                }
+                                            }
+
+                                            Spacer(Modifier.width(8.dp))
+
+                                            // --- ADD TO CART Button ---
+                                            Button(
+                                                onClick = {
+                                                    onAdd(drug, qty)
+                                                    addedToast = "${drug.name} added into inventory"
+                                                    selectedDrug = null
+                                                },
+                                                modifier = Modifier.weight(1f).height(42.dp),
+                                                colors = ButtonDefaults.buttonColors(containerColor = SimDeepBlue),
+                                                shape = RoundedCornerShape(8.dp),
+                                                contentPadding = PaddingValues(0.dp)
+                                            ) {
+                                                Text("ADD TO CART", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
+    }
 
-        // ── Product preview ──
-        if (preview != null) {
-            ProductPreviewDialog(
-                drug = preview!!,
-                onAdd = {
-                    onAdd(preview!!)
-                    preview = null
-                },
-                onDiscard = { preview = null }
-            )
+    // SUCCESS POPUP (Center)
+    androidx.compose.animation.AnimatedVisibility(
+        visible = addedToast != null,
+        enter = fadeIn() + scaleIn(initialScale = 0.8f),
+        exit = fadeOut(),
+        modifier = Modifier.fillMaxWidth().padding(top = 80.dp),
+        label = "addedToast"
+    ) {
+        Box(contentAlignment = Alignment.TopCenter, modifier = Modifier.fillMaxWidth()) {
+            Surface(
+                color = Color(0xFF2E7D32),
+                shape = RoundedCornerShape(40.dp),
+                shadowElevation = 10.dp
+            ) {
+                Row(Modifier.padding(horizontal = 24.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.CheckCircle, null, tint = Color.White, modifier = Modifier.size(24.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Text(addedToast ?: "", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun AlphaChip(label: String, selected: Boolean, onClick: () -> Unit) {
+private fun AlphabetButton(label: String, isSelected: Boolean, onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .size(width = 30.dp, height = 28.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(if (selected) SimDeepBlue else Color.White)
+            .size(width = 32.dp, height = 32.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .background(if (isSelected) SimDeepBlue else Color.White)
             .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
         Text(
             label,
-            color = if (selected) Color.White else Color(0xFF333333),
-            fontSize = 11.sp,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium
+            color = if (isSelected) Color.White else Color.Black,
+            fontSize = if (label == "ALL") 8.sp else 12.sp,
+            fontWeight = FontWeight.Bold
         )
     }
 }
 
 @Composable
-private fun DrugTile(drug: CatalogDrug, onClick: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable { onClick() },
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        shape = RoundedCornerShape(10.dp),
-        elevation = CardDefaults.cardElevation(2.dp)
+private fun DrugTileOnShelf(drug: CatalogDrug, isSelected: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(width = 100.dp, height = 80.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (isSelected) Color.White.copy(0.2f) else Color.Transparent)
+            .border(
+                width = if (isSelected) 3.dp else 0.dp,
+                color = if (isSelected) SimDeepBlue else Color.Transparent,
+                shape = RoundedCornerShape(8.dp)
+            )
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
     ) {
-        Column(Modifier.padding(10.dp)) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(SimSurface),
-                contentAlignment = Alignment.Center
-            ) { Text(drug.name.first().toString(), fontSize = 24.sp, color = SimDeepBlue, fontWeight = FontWeight.Bold) }
-            Spacer(Modifier.height(6.dp))
-            Text(drug.name, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-            Text(drug.strength, color = SimMuted, fontSize = 10.sp)
+        if (drug.drawableRes != null) {
+            Image(
+                painter = painterResource(drug.drawableRes),
+                contentDescription = drug.name,
+                modifier = Modifier.fillMaxSize().padding(6.dp),
+                contentScale = ContentScale.Fit
+            )
         }
     }
 }
-
-@Composable
-private fun ProductPreviewDialog(
-    drug: CatalogDrug,
-    onAdd: () -> Unit,
-    onDiscard: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDiscard,
-        title = { Text(drug.name, fontWeight = FontWeight.Bold) },
-        text = {
-            Column {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(120.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(SimSurface),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(drug.name.first().toString(), fontSize = 56.sp, color = SimDeepBlue, fontWeight = FontWeight.Bold)
-                }
-                Spacer(Modifier.height(10.dp))
-                Text("Strength: ${drug.strength}", fontSize = 13.sp)
-                Text("Storage: ${drug.storage.name.lowercase().replaceFirstChar { it.uppercase() }}",
-                    fontSize = 12.sp, color = SimMuted)
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = onAdd,
-                colors = ButtonDefaults.buttonColors(containerColor = SimDeepBlue)
-            ) {
-                Icon(Icons.Filled.Add, null, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(4.dp))
-                Text("Add to Cart")
-            }
-        },
-        dismissButton = { TextButton(onClick = onDiscard) { Text("Discard") } }
-    )
-}
-

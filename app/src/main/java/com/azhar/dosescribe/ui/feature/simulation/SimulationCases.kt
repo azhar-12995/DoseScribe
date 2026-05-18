@@ -1,5 +1,7 @@
 package com.azhar.dosescribe.ui.feature.simulation
 
+import com.azhar.dosescribe.R
+
 // ─────────────────────────────────────────────────────────────────
 // Sample case repository. Add a new case = add a new entry here.
 // The simulation engine renders any case purely from this data.
@@ -148,4 +150,3 @@ object SimulationCases {
         return ALL_CASES.firstOrNull { it.moduleId == moduleId } ?: ALL_CASES.first()
     }
 }
-

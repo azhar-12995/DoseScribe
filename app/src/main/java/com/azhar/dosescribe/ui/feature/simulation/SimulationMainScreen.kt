@@ -10,17 +10,24 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.slideInHorizontally
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.PanTool
+import androidx.compose.material.ripple.rememberRipple
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
@@ -37,6 +44,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -46,13 +54,6 @@ import com.azhar.dosescribe.R
 import com.azhar.dosescribe.ui.feature.lessons.LessonProgressViewModel
 import kotlinx.coroutines.delay
 
-// ─────────────────────────────────────────────────────────────────
-// Public entry point — call this from the lesson nav step 3.
-// Layout strategy:
-//   Scene takes the FULL screen (fillMaxSize). The slim peek-out
-//   right-rail floats over the scene at the right edge so the
-//   pharmacy art keeps ~92-94% effective width.
-// ─────────────────────────────────────────────────────────────────
 @Composable
 fun SimulationMainScreen(
     navController: NavController,
@@ -63,7 +64,6 @@ fun SimulationMainScreen(
     LaunchedEffect(moduleId) { vm.loadCaseForModule(moduleId) }
     val case = vm.case ?: return
 
-    // Force landscape + immersive
     val context = LocalContext.current
     val view = LocalView.current
     DisposableEffect(Unit) {
@@ -101,10 +101,8 @@ fun SimulationMainScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize().background(Color(0xFFEFEFEF))) {
-        // Full-bleed pharmacy scene
         PharmacyRoom(vm = vm)
 
-        // Slim peek-out right rail (overlay, anchored right)
         Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.CenterEnd
@@ -112,7 +110,6 @@ fun SimulationMainScreen(
             RightRail(active = vm.activeRail, onSelect = { vm.toggleRail(it) })
         }
 
-        // Hand-Over primary button (bottom-left) — replaces basket + Exit
         if (!vm.locked) {
             Box(
                 modifier = Modifier.fillMaxSize(),
@@ -127,59 +124,28 @@ fun SimulationMainScreen(
             }
         }
 
-        // Slide-in side panels — anchored to the right edge, sitting just left of the rail
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(end = 56.dp),
             contentAlignment = Alignment.CenterEnd
         ) {
-            AnimatedVisibility(
-                visible = vm.activeRail == RailButton.CART,
-                enter = slideInHorizontally(animationSpec = tween(280)) { it } + fadeIn(),
-                exit = fadeOut()
-            ) { CartPanel(vm = vm, onClose = { vm.toggleRail(RailButton.CART) }) }
-
-            AnimatedVisibility(
-                visible = vm.activeRail == RailButton.CHAT,
-                enter = slideInHorizontally(animationSpec = tween(280)) { it } + fadeIn(),
-                exit = fadeOut()
-            ) { ChatPanel(vm = vm, onClose = { vm.toggleRail(RailButton.CHAT) }) }
-
-            AnimatedVisibility(
-                visible = vm.activeRail == RailButton.DRUGS,
-                enter = slideInHorizontally(animationSpec = tween(280)) { it } + fadeIn(),
-                exit = fadeOut()
-            ) { DrugsPanel(vm = vm, onClose = { vm.toggleRail(RailButton.DRUGS) }) }
-
-            AnimatedVisibility(
-                visible = vm.activeRail == RailButton.LABELS,
-                enter = slideInHorizontally(animationSpec = tween(280)) { it } + fadeIn(),
-                exit = fadeOut()
-            ) { LabelsPanel(vm = vm, onClose = { vm.toggleRail(RailButton.LABELS) }) }
-
-            AnimatedVisibility(
-                visible = vm.activeRail == RailButton.NOTES,
-                enter = slideInHorizontally(animationSpec = tween(280)) { it } + fadeIn(),
-                exit = fadeOut()
-            ) { NotesPanel(vm = vm, onClose = { vm.toggleRail(RailButton.NOTES) }) }
-
-            AnimatedVisibility(
-                visible = vm.activeRail == RailButton.REPORTS,
-                enter = slideInHorizontally(animationSpec = tween(280)) { it } + fadeIn(),
-                exit = fadeOut()
-            ) { ReportsPanel(vm = vm, onClose = { vm.toggleRail(RailButton.REPORTS) }) }
+            AnimatedVisibility(visible = vm.activeRail == RailButton.CART, enter = slideInHorizontally(tween(280)) { it } + fadeIn(), exit = fadeOut()) { CartPanel(vm = vm, onClose = { vm.toggleRail(RailButton.CART) }) }
+            AnimatedVisibility(visible = vm.activeRail == RailButton.CHAT, enter = slideInHorizontally(tween(280)) { it } + fadeIn(), exit = fadeOut()) { ChatPanel(vm = vm, onClose = { vm.toggleRail(RailButton.CHAT) }) }
+            AnimatedVisibility(visible = vm.activeRail == RailButton.DRUGS, enter = slideInHorizontally(tween(280)) { it } + fadeIn(), exit = fadeOut()) { DrugsPanel(vm = vm, onClose = { vm.toggleRail(RailButton.DRUGS) }) }
+            AnimatedVisibility(visible = vm.activeRail == RailButton.LABELS, enter = slideInHorizontally(tween(280)) { it } + fadeIn(), exit = fadeOut()) { LabelsPanel(vm = vm, onClose = { vm.toggleRail(RailButton.LABELS) }) }
+            AnimatedVisibility(visible = vm.activeRail == RailButton.NOTES, enter = slideInHorizontally(tween(280)) { it } + fadeIn(), exit = fadeOut()) { NotesPanel(vm = vm, onClose = { vm.toggleRail(RailButton.NOTES) }) }
+            AnimatedVisibility(visible = vm.activeRail == RailButton.REPORTS, enter = slideInHorizontally(tween(280)) { it } + fadeIn(), exit = fadeOut()) { ReportsPanel(vm = vm, onClose = { vm.toggleRail(RailButton.REPORTS) }) }
         }
 
-        // Modals
         if (vm.showPrescription) PrescriptionPopup(vm = vm)
         if (vm.showStorage != null) StorageScreen(
             storage = vm.showStorage!!,
             catalog = case.availableDrugs,
-            onAdd = {
-                vm.addDrugToCart(it)
+            onAdd = { drug, qty ->
+                vm.addDrugToCart(drug, qty)
                 vm.closeStorage()
-                vm.openLabelingFor(it.id)        // labeling reachable from storage
+                vm.openLabelingFor(drug.id)
             },
             onClose = { vm.closeStorage() }
         )
@@ -189,39 +155,20 @@ fun SimulationMainScreen(
         if (vm.showLabeling) LabelingScreen(vm = vm, onClose = { vm.closeLabeling() })
         if (vm.showHoldForm) HoldFormDialog(vm = vm, onClose = { vm.closeHoldForm() })
 
-        // Hand-Over confirm dialog
         if (vm.showHandOverConfirm) {
             AlertDialog(
                 onDismissRequest = { vm.closeHandOverConfirm() },
                 title = { Text("Hand Over to Patient?") },
-                text = {
-                    Text(
-                        "This locks all inputs, scores your session, and submits the result. " +
-                                "Make sure all labels and holds are complete."
-                    )
-                },
+                text = { Text("This locks all inputs, scores your session, and submits the result.") },
                 confirmButton = {
-                    Button(
-                        onClick = {
-                            vm.closeHandOverConfirm()
-                            vm.handOverAndScore()
-                            showResults = true
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = SimDeepBlue)
-                    ) { Text("Hand Over") }
+                    Button(onClick = { vm.closeHandOverConfirm(); vm.handOverAndScore(); showResults = true }, colors = ButtonDefaults.buttonColors(containerColor = SimDeepBlue)) { Text("Hand Over") }
                 },
-                dismissButton = {
-                    TextButton(onClick = { vm.closeHandOverConfirm() }) { Text("Cancel") }
-                }
+                dismissButton = { TextButton(onClick = { vm.closeHandOverConfirm() }) { Text("Cancel") } }
             )
         }
     }
 }
 
-// ─────────────────────────────────────────────────────────────────
-// Pharmacy room — full-bleed scene with clickable hotspots.
-// All sizes are %-based so the scene scales on any landscape phone.
-// ─────────────────────────────────────────────────────────────────
 @Composable
 private fun PharmacyRoom(vm: SimulationViewModel) {
     val case = vm.case ?: return
@@ -229,303 +176,163 @@ private fun PharmacyRoom(vm: SimulationViewModel) {
     LaunchedEffect(Unit) { delay(450); caseStarted = true }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // Walls (back + floor)
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(0.72f)
-                .background(Brush.verticalGradient(listOf(Color(0xFFF4F6F8), Color(0xFFE2E6EA))))
-        )
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .fillMaxHeight(0.28f)
-                .background(Brush.verticalGradient(listOf(Color(0xFFE0DFDA), Color(0xFFCFCDC6))))
-        )
+        Box(modifier = Modifier.fillMaxWidth().fillMaxHeight(0.72f).background(Brush.verticalGradient(listOf(Color(0xFFF4F6F8), Color(0xFFE2E6EA)))))
+        Box(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().fillMaxHeight(0.28f).background(Brush.verticalGradient(listOf(Color(0xFFE0DFDA), Color(0xFFCFCDC6)))))
 
-        // Continuous shelf system + fridge + safe across the back wall
-        Row(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(start = 4.dp, top = 6.dp, end = 6.dp)
-                .fillMaxWidth(0.94f)
-                .fillMaxHeight(0.66f)
-        ) {
-            // Continuous shelves — tile drawable horizontally so it
-            // reads as a busy back wall, not one isolated cabinet.
-            Row(
-                modifier = Modifier
-                    .weight(0.66f)
-                    .fillMaxHeight()
-                    .clickable { vm.openStorage(DrugStorage.SHELF) }
-            ) {
-                repeat(3) {
-                    Image(
-                        painter = painterResource(R.drawable.shelf),
-                        contentDescription = if (it == 0) "Shelves" else null,
-                        modifier = Modifier.weight(1f).fillMaxHeight(),
-                        contentScale = ContentScale.FillBounds
-                    )
-                }
+        Row(modifier = Modifier.align(Alignment.TopStart).padding(start = 4.dp, top = 6.dp, end = 6.dp).fillMaxWidth(0.94f).fillMaxHeight(0.66f)) {
+            Row(modifier = Modifier.weight(0.66f).fillMaxHeight().clickable { vm.openStorage(DrugStorage.SHELF) }) {
+                repeat(3) { Image(painter = painterResource(R.drawable.shelf), contentDescription = null, modifier = Modifier.weight(1f).fillMaxHeight(), contentScale = ContentScale.FillBounds) }
             }
             Spacer(Modifier.width(6.dp))
-            // Fridge — full-height
-            Box(
-                modifier = Modifier
-                    .weight(0.13f)
-                    .fillMaxHeight()
-                    .clickable { vm.openStorage(DrugStorage.FRIDGE) },
-                contentAlignment = Alignment.BottomCenter
-            ) {
-                Image(
-                    painter = painterResource(R.drawable.fridge_1),
-                    contentDescription = "Medication fridge",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Fit
-                )
+            Box(modifier = Modifier.weight(0.13f).fillMaxHeight().clickable { vm.openStorage(DrugStorage.FRIDGE) }, contentAlignment = Alignment.BottomCenter) {
+                Image(painter = painterResource(R.drawable.fridge_1), contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
             }
             Spacer(Modifier.width(4.dp))
-            // Safe locker — controlled-substance safe
-            Box(
-                modifier = Modifier
-                    .weight(0.13f)
-                    .fillMaxHeight()
-                    .clickable { vm.openStorage(DrugStorage.SAFE) },
-                contentAlignment = Alignment.BottomCenter
-            ) {
-                Image(
-                    painter = painterResource(R.drawable.locker),
-                    contentDescription = "Controlled substance safe",
-                    modifier = Modifier.fillMaxWidth().fillMaxHeight(0.92f),
-                    contentScale = ContentScale.Fit
-                )
+            Box(modifier = Modifier.weight(0.13f).fillMaxHeight().clickable { vm.openStorage(DrugStorage.SAFE) }, contentAlignment = Alignment.BottomCenter) {
+                Image(painter = painterResource(R.drawable.locker), contentDescription = null, modifier = Modifier.fillMaxWidth().fillMaxHeight(0.92f), contentScale = ContentScale.Fit)
             }
         }
 
-        // Wall art (decorative, far top-right corner)
-        Image(
-            painter = painterResource(R.drawable.bg_on_wall_1),
-            contentDescription = null,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(end = 70.dp, top = 14.dp)
-                .size(width = 42.dp, height = 56.dp)
-        )
+        Box(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().fillMaxHeight(0.32f).background(Brush.verticalGradient(listOf(Color(0xFFE3DFD7), Color(0xFFC8C2B6)))))
 
-        // Counter top (in front of patient)
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .fillMaxHeight(0.30f)
-                .background(Brush.verticalGradient(listOf(Color(0xFFE3DFD7), Color(0xFFC8C2B6))))
-        )
-
-        // Patient sprite (centered behind counter)
         Image(
             painter = painterResource(case.patientSprite.drawableRes),
             contentDescription = null,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 70.dp)
-                .offset(x = (-90).dp)
-                .fillMaxHeight(0.78f)
-                .width(220.dp),
+            modifier = Modifier.align(Alignment.BottomStart).padding(start = 80.dp, bottom = 80.dp).fillMaxHeight(0.74f).width(210.dp).zIndex(1f).clickable { vm.showSpeechBubble() },
             contentScale = ContentScale.Fit
         )
 
-        // Speech bubble (right of patient's head, left-pointing tail)
-        AnimatedVisibility(
-            visible = caseStarted,
-            enter = fadeIn(tween(500, delayMillis = 300)) +
-                    scaleIn(animationSpec = spring(Spring.DampingRatioMediumBouncy), initialScale = 0.7f),
-            exit = fadeOut(),
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = 18.dp, start = 220.dp, end = 280.dp)
-        ) { SpeechBubble(case.entryStatement) }
+        LaunchedEffect(vm.speechBubbleShownAt, caseStarted) { if (caseStarted && vm.speechBubbleVisible) { delay(4500); vm.hideSpeechBubble() } }
+        AnimatedVisibility(visible = caseStarted && vm.speechBubbleVisible, enter = fadeIn(tween(350)) + scaleIn(spring(Spring.DampingRatioMediumBouncy), initialScale = 0.7f), exit = fadeOut(tween(220)), modifier = Modifier.align(Alignment.TopStart).padding(start = 280.dp, top = 28.dp).fillMaxWidth(0.40f).zIndex(5f)) { SpeechBubble(case.entryStatement) }
 
-        // Counter props ─────────────────────────────────────────
-        // Prescription paper (slightly left of center)
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(start = 200.dp, bottom = 30.dp)
-                .size(width = 110.dp, height = 60.dp)
-                .clickable { vm.openPrescription() }
-        ) {
-            Image(
-                painter = painterResource(R.drawable.prescription),
-                contentDescription = "Prescription",
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Fit
-            )
-        }
-        // Loose papers / clinical reference — center-left
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(start = 320.dp, bottom = 28.dp)
-                .size(width = 90.dp, height = 56.dp)
-                .clickable { vm.openClinicalReference() }
-        ) {
-            Image(
-                painter = painterResource(R.drawable.lab_reports),
-                contentDescription = "Clinical reference",
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Fit
-            )
-        }
-        // Calculator
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 28.dp)
-                .offset(x = (-40).dp)
-                .size(width = 50.dp, height = 50.dp)
-                .clickable { vm.openCalculator() }
-        ) {
-            Image(
-                painter = painterResource(R.drawable.calculator),
-                contentDescription = "Calculator",
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Fit
-            )
-        }
-        // Books — between calculator and PC
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 24.dp)
-                .offset(x = 30.dp)
-                .size(width = 60.dp, height = 60.dp)
-                .clickable { vm.openClinicalReference() }
-        ) {
-            Image(
-                painter = painterResource(R.drawable.books),
-                contentDescription = "Books",
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Fit
-            )
-        }
+        Box(modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().fillMaxHeight(0.32f).zIndex(2f)) {
 
-        // Desktop computer (right side of counter)
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 110.dp, bottom = 22.dp)
-                .fillMaxWidth(0.22f)
-                .fillMaxHeight(0.46f)
-                .clickable { vm.openPatientFiles() }
-        ) {
-            DesktopComputer(showTime = caseStarted)
+            // 1. Hand Over Button (Front-Left)
+            SimPrimaryButton(
+                label = "Hand Over",
+                icon = Icons.Filled.PanTool,
+                modifier = Modifier.align(Alignment.BottomStart).padding(start = 20.dp, bottom = 20.dp).zIndex(10f),
+                onClick = { vm.openHandOverConfirm() }
+            )
+
+            // 2. Basket (Behind Hand Over)
+            DeskItem(
+                resId = R.drawable.basket,
+                label = "Basket",
+                modifier = Modifier.align(Alignment.BottomStart).padding(start = 12.dp, bottom = 45.dp).size(130.dp, 95.dp),
+                onClick = { vm.toggleRail(RailButton.CART) }
+            )
+
+            // 3. Prescription (Between Hands - Center Left)
+            DeskItem(
+                resId = R.drawable.prescription,
+                label = "Prescription",
+                modifier = Modifier.align(Alignment.BottomCenter).offset(x = (-130).dp, y = (-20).dp).size(110.dp, 140.dp),
+                onClick = { vm.openPrescription() }
+            )
+
+            // 4. Calculator (Centered)
+            DeskItem(
+                resId = R.drawable.calculator,
+                label = "Calculator",
+                modifier = Modifier.align(Alignment.BottomCenter).offset(x = 10.dp, y = (-25).dp).size(85.dp, 85.dp),
+                onClick = { vm.openCalculator() }
+            )
+
+            // 5. Telephone (Right of Calculator)
+            DeskItem(
+                resId = R.drawable.telephone,
+                label = "Telephone",
+                modifier = Modifier.align(Alignment.BottomCenter).offset(x = 110.dp, y = (-30).dp).size(95.dp, 75.dp),
+                onClick = { vm.openTelephone() }
+            )
+
+            // 6. Reports (Center Right)
+            DeskItem(
+                resId = R.drawable.lab_reports,
+                label = "Reports",
+                modifier = Modifier.align(Alignment.BottomCenter).offset(x = 220.dp, y = (-15).dp).size(110.dp, 130.dp),
+                onClick = { vm.openReports() }
+            )
+
+            // 7. Reference (Right Side)
+            DeskItem(
+                resId = R.drawable.books,
+                label = "Reference",
+                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 280.dp, bottom = 20.dp).size(130.dp, 100.dp),
+                onClick = { vm.openClinicalReference() }
+            )
+
+            // 8. Computer (Far Right)
+            Box(
+                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 50.dp, bottom = 25.dp).fillMaxWidth(0.20f).fillMaxHeight(0.95f).clickable { vm.openPatientFiles() }
+            ) {
+                DesktopComputerModern(showTime = caseStarted)
+            }
         }
     }
 }
 
-// ─────────────────────────────────────────────────────────────────
-// Desktop computer — proper monitor on stand + keyboard + mouse.
-// Shows a small "10:30 AM" clock on the screen and the brand logo.
-// ─────────────────────────────────────────────────────────────────
 @Composable
-private fun DesktopComputer(showTime: Boolean) {
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Bottom
+private fun DeskItem(
+    resId: Int,
+    label: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = modifier
+            .shadow(4.dp, RoundedCornerShape(8.dp))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = rememberRipple(bounded = false, radius = 48.dp),
+                onClick = onClick
+            ),
+        contentAlignment = Alignment.Center
     ) {
-        // Monitor body (narrow bezels)
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxHeight(0.74f)
-                .shadow(8.dp, RoundedCornerShape(10.dp))
-                .clip(RoundedCornerShape(10.dp))
-                .background(Brush.verticalGradient(listOf(Color(0xFF2A2A2A), Color(0xFF111111))))
-                .padding(4.dp)
-        ) {
-            // Screen
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(Brush.verticalGradient(listOf(Color(0xFF000000), Color(0xFF1B1B1B))))
-            ) {
-                if (showTime) {
-                    Text(
-                        text = "10:30 AM",
-                        color = Color(0xFFE8E8E8),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier
-                            .align(Alignment.BottomEnd)
-                            .padding(end = 8.dp, bottom = 6.dp)
-                    )
-                }
-                Image(
-                    painter = painterResource(R.drawable.logo_on_computer),
-                    contentDescription = null,
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .fillMaxWidth(0.7f)
-                        .fillMaxHeight(0.55f),
-                    contentScale = ContentScale.Fit
-                )
-            }
-        }
-        // Stand neck
-        Box(modifier = Modifier.width(20.dp).height(8.dp).background(Color(0xFF2A2A2A)))
-        // Stand base
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(0.45f)
-                .height(5.dp)
-                .clip(RoundedCornerShape(3.dp))
-                .background(Color(0xFF1F1F1F))
+        Image(
+            painter = painterResource(resId),
+            contentDescription = label,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Fit
         )
-        Spacer(Modifier.height(4.dp))
-        // Keyboard + mouse
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Keyboard
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(0.62f)
-                    .height(14.dp)
-                    .shadow(2.dp, RoundedCornerShape(3.dp))
-                    .clip(RoundedCornerShape(3.dp))
-                    .background(Color(0xFFEFEFEF))
-                    .border(0.5.dp, Color(0xFFCCCCCC), RoundedCornerShape(3.dp))
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp, vertical = 3.dp),
-                    horizontalArrangement = Arrangement.spacedBy(1.5.dp)
-                ) {
-                    repeat(14) {
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .background(Color(0xFFD9D9D9), RoundedCornerShape(1.dp))
-                        )
-                    }
-                }
-            }
-            Spacer(Modifier.width(6.dp))
-            // Mouse
-            Box(
-                modifier = Modifier
-                    .size(width = 12.dp, height = 14.dp)
-                    .shadow(2.dp, RoundedCornerShape(percent = 50))
-                    .clip(RoundedCornerShape(percent = 50))
-                    .background(Color(0xFFEFEFEF))
-                    .border(0.5.dp, Color(0xFFCCCCCC), RoundedCornerShape(percent = 50))
-            )
-        }
     }
 }
 
+@Composable
+private fun DesktopComputerModern(showTime: Boolean) {
+    Column(modifier = Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Bottom) {
+        Surface(
+            modifier = Modifier.fillMaxWidth().fillMaxHeight(0.82f),
+            color = Color(0xFF1A1A1A),
+            shape = RoundedCornerShape(10.dp),
+            shadowElevation = 10.dp,
+            border = BorderStroke(1.dp, Color(0xFF333333))
+        ) {
+            Box(modifier = Modifier.fillMaxSize().padding(4.dp).background(Color.Black, RoundedCornerShape(6.dp))) {
+                if (showTime) {
+                    Text("10:30 AM", color = Color(0xFF00FF00), fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.TopEnd).padding(6.dp))
+                }
+                Column(modifier = Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Image(painter = painterResource(R.drawable.logo_on_computer), contentDescription = null, modifier = Modifier.size(60.dp), contentScale = ContentScale.Fit)
+                    Text("DOSESCRIBE", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp)
+                }
+                Surface(modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 6.dp), color = Color(0xFF333333), shape = CircleShape) {
+                    Box(Modifier.size(6.dp))
+                }
+            }
+        }
+        Box(modifier = Modifier.width(35.dp).height(12.dp).background(Color(0xFF222222)))
+        Surface(modifier = Modifier.width(80.dp).height(5.dp), color = Color(0xFF1A1A1A), shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)) {}
+        Spacer(Modifier.height(5.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Surface(modifier = Modifier.width(90.dp).height(12.dp), color = Color(0xFFE0E0E0), shape = RoundedCornerShape(2.dp), shadowElevation = 2.dp) {
+                Row(modifier = Modifier.padding(2.dp), horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+                    repeat(10) { Box(modifier = Modifier.weight(1f).fillMaxHeight().background(Color(0xFFBDBDBD))) }
+                }
+            }
+            Spacer(Modifier.width(10.dp))
+            Surface(modifier = Modifier.size(14.dp), color = Color(0xFFE0E0E0), shape = CircleShape, shadowElevation = 2.dp) {}
+        }
+    }
+}
